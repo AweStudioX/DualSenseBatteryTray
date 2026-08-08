@@ -1,0 +1,7 @@
+.worktrees/
+.superpowers/
+/.superpowers/brainstorm/
+bin/
+obj/
+/artifacts/
+/diagnostics/

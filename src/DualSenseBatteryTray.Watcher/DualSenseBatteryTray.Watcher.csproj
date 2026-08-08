@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DualSenseBatteryTray.Core\DualSenseBatteryTray.Core.csproj" />
+    <ProjectReference Include="..\DualSenseBatteryTray.Hid\DualSenseBatteryTray.Hid.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DualSenseBatteryTray.Watcher.Tests" />
+  </ItemGroup>
+
+</Project>

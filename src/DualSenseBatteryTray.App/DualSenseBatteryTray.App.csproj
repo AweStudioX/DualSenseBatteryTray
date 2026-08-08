@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DualSenseBatteryTray.Core\DualSenseBatteryTray.Core.csproj" />
+    <ProjectReference Include="..\DualSenseBatteryTray.Hid\DualSenseBatteryTray.Hid.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\App\dualsense-disconnected.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DualSenseBatteryTray.App.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\App\dualsense-disconnected.ico" />
+    <Resource Include="Assets\Tray\dualsense-connected-light.png" />
+    <Resource Include="Assets\Tray\dualsense-connected-dark.png" />
+  </ItemGroup>
+
+</Project>
