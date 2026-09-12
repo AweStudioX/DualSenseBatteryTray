@@ -83,9 +83,16 @@ public partial class App : System.Windows.Application
 
     private void OnReaderEnded(Exception? error)
     {
-        _logger?.Log(error is null ? "reader.ended" : "reader.failure", error);
+        _logger?.Log(ReaderEndEventName(error), error);
         _ = Dispatcher.InvokeAsync(() => _ = ShutdownApplicationAsync());
     }
+
+    internal static string ReaderEndEventName(Exception? error) => error switch
+    {
+        ControllerReportsStaleException => "controller.stale",
+        null => "reader.ended",
+        _ => "reader.failure",
+    };
 
     private async Task RefreshReaderAsync()
     {

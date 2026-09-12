@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DualSenseBatteryTray.Hid.Tests" />
+    <InternalsVisibleTo Include="DualSenseBatteryTray.Watcher.Tests" />
   </ItemGroup>
 
   <PropertyGroup>

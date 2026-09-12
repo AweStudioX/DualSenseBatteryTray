@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Security.Principal;
-using DualSenseBatteryTray.Core.Devices;
 using DualSenseBatteryTray.Hid;
 
 namespace DualSenseBatteryTray.Watcher;
@@ -19,42 +18,25 @@ internal static class Program
         if (!createdNew)
             return;
 
+        WatcherLivenessCoordinator? coordinator = null;
         try
         {
             var appMutexName = WatcherRuntime.GetAppMutexName(userSid);
             var appStartInfo = WatcherRuntime.CreateAppStartInfo(AppContext.BaseDirectory);
-            var launcher = new WatcherLauncher(
-                new HidDeviceEnumerator(),
+            coordinator = new WatcherLivenessCoordinator(
+                new ControllerLivenessProbe(),
                 () => WatcherRuntime.IsMutexPresent(appMutexName),
                 () => Process.Start(appStartInfo)?.Dispose());
-            using var notificationWindow = new DeviceNotificationWindow(launcher.CheckAndStart);
+            using var notificationWindow = new DeviceNotificationWindow(coordinator.RequestCheck);
 
-            launcher.CheckAndStart();
+            coordinator.RequestCheck();
             System.Windows.Forms.Application.Run();
         }
         finally
         {
+            coordinator?.DisposeAsync().AsTask().GetAwaiter().GetResult();
             watcherMutex.ReleaseMutex();
         }
-    }
-}
-
-internal sealed class WatcherLauncher(
-    IControllerPresence presence,
-    Func<bool> appAlreadyRunning,
-    Action startApp)
-{
-    private readonly IControllerPresence _presence =
-        presence ?? throw new ArgumentNullException(nameof(presence));
-    private readonly Func<bool> _appAlreadyRunning =
-        appAlreadyRunning ?? throw new ArgumentNullException(nameof(appAlreadyRunning));
-    private readonly Action _startApp = startApp ?? throw new ArgumentNullException(nameof(startApp));
-
-    internal void CheckAndStart()
-    {
-        var controllerPresent = _presence.IsPresent(ControllerIdentity.UsbDualSense);
-        if (WatcherDecision.ShouldStart(controllerPresent, _appAlreadyRunning()))
-            _startApp();
     }
 }
 

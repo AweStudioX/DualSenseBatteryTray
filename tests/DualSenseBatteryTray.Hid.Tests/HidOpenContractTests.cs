@@ -30,4 +30,16 @@ public sealed class HidOpenContractTests
         Assert.Equal(3u, attributeProbe.CreationDisposition);
         Assert.Equal(0u, attributeProbe.FlagsAndAttributes);
     }
+
+    [Fact]
+    public void Both_consumers_accept_the_same_shared_session_factory_boundary()
+    {
+        var sessions = new FakeSessionFactory(stream: null);
+
+        using var reader = new DualSenseHidReader(sessions);
+        var probe = new ControllerLivenessProbe(sessions, TimeSpan.FromSeconds(1));
+
+        Assert.NotNull(reader);
+        Assert.NotNull(probe);
+    }
 }

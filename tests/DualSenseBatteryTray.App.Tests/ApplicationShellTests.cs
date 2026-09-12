@@ -3,15 +3,66 @@ using System.Runtime.ExceptionServices;
 using System.Reflection;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using DualSenseBatteryTray.App.Shell;
 using DualSenseBatteryTray.App.Tray;
 using DualSenseBatteryTray.Core.Battery;
 using DualSenseBatteryTray.Core.Devices;
+using DualSenseBatteryTray.Hid;
 using Forms = System.Windows.Forms;
 
 namespace DualSenseBatteryTray.App.Tests;
 
 public sealed class ApplicationShellTests
 {
+    [Theory]
+    [InlineData(typeof(ControllerReportsStaleException), "controller.stale")]
+    [InlineData(typeof(IOException), "reader.failure")]
+    public void Reader_end_event_distinguishes_stale_from_failure(Type type, string expected)
+    {
+        var error = (Exception)Activator.CreateInstance(type)!;
+
+        Assert.Equal(expected, App.ReaderEndEventName(error));
+    }
+
+    [Fact]
+    public void Reader_end_event_maps_clean_completion()
+    {
+        Assert.Equal("reader.ended", App.ReaderEndEventName(null));
+    }
+
+    [Fact]
+    public void WindowSmallIconController_applies_once_and_owns_icon_until_disposed()
+    {
+        var created = 0;
+        var applied = new List<(nint Window, nint Icon)>();
+        using var expected = BatteryIconRenderer.RenderWindowSmallIcon(16);
+        using var controller = new WindowSmallIconController(
+            () => { created++; return (System.Drawing.Icon)expected.Clone(); },
+            (window, icon) => applied.Add((window, icon)));
+
+        controller.Apply((nint)42);
+        controller.Apply((nint)42);
+
+        Assert.Equal(1, created);
+        Assert.Single(applied);
+        Assert.Equal((nint)42, applied[0].Window);
+        Assert.NotEqual(nint.Zero, applied[0].Icon);
+    }
+
+    [Fact]
+    public void WindowSmallIconController_disposes_new_icon_when_apply_fails()
+    {
+        using var icon = BatteryIconRenderer.RenderWindowSmallIcon(16);
+        var disposed = 0;
+        var controller = new WindowSmallIconController(
+            () => icon,
+            (_, _) => throw new InvalidOperationException("apply failed"),
+            _ => disposed++);
+
+        Assert.Throws<InvalidOperationException>(() => controller.Apply((nint)42));
+        Assert.Equal(1, disposed);
+    }
+
     [Fact]
     public void SingleInstanceGuard_allows_only_one_current_user_instance()
     {
@@ -48,8 +99,11 @@ public sealed class ApplicationShellTests
             try
             {
                 var window = new MainWindow();
-                var applicationIcon = window.Icon;
-                var applicationIconPixels = CopyPixels(applicationIcon);
+                var expectedLargeIcon = BatteryIconRenderer.RenderApplicationIcon();
+                Assert.Same(expectedLargeIcon, window.Icon);
+                Assert.Equal(
+                    ComputeHash(CopyPixels(expectedLargeIcon)),
+                    ComputeHash(CopyPixels(window.Icon)));
                 using var context = new TrayApplicationContext(
                     window,
                     () => { },
@@ -78,8 +132,9 @@ public sealed class ApplicationShellTests
                 Assert.Equal(
                     ComputeHash(BatteryIconRenderer.RenderCompact(lowState, TrayTheme.DarkTaskbar, 32)),
                     ComputeHash(DecodeFrames(lowIcon)[32]));
-                Assert.Same(applicationIcon, window.Icon);
-                Assert.Equal(applicationIconPixels, CopyPixels(window.Icon));
+                Assert.Equal(
+                    ComputeHash(CopyPixels(expectedLargeIcon)),
+                    ComputeHash(CopyPixels(window.Icon)));
                 Assert.Null(window.TaskbarItemInfo.Overlay);
                 window.BeginShutdown();
             }
@@ -597,7 +652,10 @@ public sealed class ApplicationShellTests
     }
 
     private static string ComputeHash(BitmapSource source) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(CopyPixels(source)));
+        ComputeHash(CopyPixels(source));
+
+    private static string ComputeHash(byte[] pixels) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(pixels));
 
     private sealed class AvailableWatcherTaskService : DualSenseBatteryTray.App.Startup.IWatcherTaskService
     {

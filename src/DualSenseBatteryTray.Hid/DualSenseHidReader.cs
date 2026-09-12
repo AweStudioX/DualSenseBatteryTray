@@ -1,18 +1,63 @@
-using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using DualSenseBatteryTray.Core.Battery;
 using DualSenseBatteryTray.Core.Devices;
-using DualSenseBatteryTray.Hid.Native;
 
 namespace DualSenseBatteryTray.Hid;
 
+public sealed class ControllerReportsStaleException()
+    : IOException("The physical DualSense input report stopped progressing.");
+
 public sealed class DualSenseHidReader : IBatteryReportSource, IDisposable, IAsyncDisposable
 {
+    public static readonly TimeSpan DefaultStaleTimeout = TimeSpan.FromSeconds(2);
+
     private readonly object _gate = new();
-    private readonly HidDeviceEnumerator _enumerator = new();
-    private FileStream? _activeStream;
+    private readonly IHidInputReportSessionFactory _sessions;
+    private readonly IAsyncDelay _delay;
+    private readonly IAsyncTaskRace _taskRace;
+    private readonly TimeSpan _staleTimeout;
+    private Stream? _activeStream;
     private bool _disposed;
+
+    public DualSenseHidReader()
+        : this(
+            new HidInputReportStreamFactory(),
+            new SystemAsyncDelay(),
+            new SystemAsyncTaskRace(),
+            DefaultStaleTimeout)
+    {
+    }
+
+    internal DualSenseHidReader(IHidInputReportSessionFactory sessions)
+        : this(sessions, new SystemAsyncDelay(), new SystemAsyncTaskRace(), DefaultStaleTimeout)
+    {
+    }
+
+    internal DualSenseHidReader(
+        IHidInputReportSessionFactory sessions,
+        IAsyncDelay delay,
+        TimeSpan staleTimeout)
+        : this(sessions, delay, new SystemAsyncTaskRace(), staleTimeout)
+    {
+    }
+
+    internal DualSenseHidReader(
+        IHidInputReportSessionFactory sessions,
+        IAsyncDelay delay,
+        IAsyncTaskRace taskRace,
+        TimeSpan staleTimeout)
+    {
+        ArgumentNullException.ThrowIfNull(sessions);
+        ArgumentNullException.ThrowIfNull(delay);
+        ArgumentNullException.ThrowIfNull(taskRace);
+        if (staleTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(staleTimeout));
+
+        _sessions = sessions;
+        _delay = delay;
+        _taskRace = taskRace;
+        _staleTimeout = staleTimeout;
+    }
 
     public async IAsyncEnumerable<BatteryState> ReadStatesAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -20,92 +65,118 @@ public sealed class DualSenseHidReader : IBatteryReportSource, IDisposable, IAsy
         cancellationToken.ThrowIfCancellationRequested();
         ThrowIfDisposed();
 
-        var path = _enumerator.FindPaths(ControllerIdentity.UsbDualSense).FirstOrDefault();
-        if (path is null)
+        await using var session = await _sessions
+            .OpenAsync(ControllerIdentity.UsbDualSense, cancellationToken)
+            .ConfigureAwait(false);
+        if (session is null)
             yield break;
 
-        var handle = HidNative.OpenReadOnlyShared(path);
-        if (handle.IsInvalid)
-        {
-            var nativeError = new Win32Exception(Marshal.GetLastWin32Error());
-            handle.Dispose();
-            throw new IOException("Could not open the DualSense HID device for shared reading.", nativeError);
-        }
+        var stream = session.Stream;
 
-        FileStream stream;
-        int inputReportByteLength;
-        try
-        {
-            inputReportByteLength = HidNative.GetInputReportByteLength(handle);
-            stream = new FileStream(
-                handle,
-                FileAccess.Read,
-                bufferSize: inputReportByteLength,
-                isAsync: true);
-        }
-        catch
-        {
-            handle.Dispose();
-            throw;
-        }
+        Activate(stream);
 
         try
         {
-            Activate(stream);
-        }
-        catch
-        {
-            await stream.DisposeAsync().ConfigureAwait(false);
-            throw;
-        }
-
-        try
-        {
-            var buffer = new byte[inputReportByteLength];
+            var buffer = new byte[session.ReportLength];
             var processor = new HidReportProcessor();
             var failures = new ConsecutiveReadFailureTracker();
+            var liveness = new DualSenseReportLivenessObserver();
+            var deadlineCancellation = new CancellationTokenSource();
+            var deadline = _delay.WaitAsync(_staleTimeout, deadlineCancellation.Token);
 
-            while (true)
+            try
             {
-                int bytesRead;
-                try
+                while (true)
                 {
-                    bytesRead = await stream
-                        .ReadAsync(buffer.AsMemory(), cancellationToken)
+                    int bytesRead;
+                    if (deadline.IsCompleted)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (IsDisposed())
+                            break;
+
+                        DisposeStreamAfterStaleDeadline(stream);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (IsDisposed())
+                            break;
+
+                        throw new ControllerReportsStaleException();
+                    }
+
+                    using var readCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                        cancellationToken);
+                    var read = ReadReportAsync(
+                        stream, buffer.AsMemory(), readCancellation.Token);
+                    var completed = await _taskRace
+                        .WhenAnyAsync(deadline, read)
                         .ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (ObjectDisposedException) when (IsDisposed())
-                {
-                    break;
-                }
-                catch (IOException error)
-                {
-                    failures.RecordFailure(error);
-                    continue;
-                }
+                    if (ReferenceEquals(completed, deadline))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (IsDisposed())
+                            break;
 
-                RecordReadOutcome(bytesRead, failures);
-                if (bytesRead <= BatteryParser.BatteryOffset + 1)
-                    continue;
+                        readCancellation.Cancel();
+                        DisposeStreamAfterStaleDeadline(stream);
+                        ObserveReadFailure(read);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (IsDisposed())
+                            break;
 
-                if (processor.TryProcess(buffer.AsSpan(0, bytesRead), out var state))
-                    yield return state!;
+                        throw new ControllerReportsStaleException();
+                    }
+
+                    try
+                    {
+                        bytesRead = await read.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (ObjectDisposedException) when (IsDisposed())
+                    {
+                        break;
+                    }
+                    catch (IOException error)
+                    {
+                        failures.RecordFailure(error);
+                        continue;
+                    }
+
+                    RecordReadOutcome(bytesRead, failures);
+                    var observation = liveness.Observe(buffer.AsSpan(0, bytesRead));
+                    if (observation == ControllerLivenessObservation.Progressing)
+                    {
+                        deadlineCancellation.Cancel();
+                        deadlineCancellation.Dispose();
+                        deadlineCancellation = new CancellationTokenSource();
+                        deadline = _delay.WaitAsync(
+                            _staleTimeout, deadlineCancellation.Token);
+                    }
+
+                    if (bytesRead <= BatteryParser.BatteryOffset + 1)
+                        continue;
+
+                    if (processor.TryProcess(buffer.AsSpan(0, bytesRead), out var state))
+                        yield return state!;
+                }
+            }
+            finally
+            {
+                deadlineCancellation.Cancel();
+                deadlineCancellation.Dispose();
             }
         }
         finally
         {
             Deactivate(stream);
-            await stream.DisposeAsync().ConfigureAwait(false);
         }
     }
 
     public void Dispose()
     {
-        FileStream? stream;
+        Stream? stream;
         lock (_gate)
         {
             if (_disposed)
@@ -140,7 +211,7 @@ public sealed class DualSenseHidReader : IBatteryReportSource, IDisposable, IAsy
         failures.RecordSuccess();
     }
 
-    private void Activate(FileStream stream)
+    private void Activate(Stream stream)
     {
         lock (_gate)
         {
@@ -152,7 +223,7 @@ public sealed class DualSenseHidReader : IBatteryReportSource, IDisposable, IAsy
         }
     }
 
-    private void Deactivate(FileStream stream)
+    private void Deactivate(Stream stream)
     {
         lock (_gate)
         {
@@ -172,6 +243,56 @@ public sealed class DualSenseHidReader : IBatteryReportSource, IDisposable, IAsy
         lock (_gate)
             ObjectDisposedException.ThrowIf(_disposed, this);
     }
+
+    private static void DisposeStreamAfterStaleDeadline(Stream stream)
+    {
+        try
+        {
+            stream.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (IOException)
+        {
+        }
+    }
+
+    private static void ObserveReadFailure(Task<int> read)
+    {
+        _ = read.ContinueWith(
+            static completed => _ = completed.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
+    }
+
+    private static async Task<int> ReadReportAsync(
+        Stream stream,
+        Memory<byte> buffer,
+        CancellationToken cancellationToken) =>
+        await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+}
+
+internal interface IAsyncDelay
+{
+    Task WaitAsync(TimeSpan delay, CancellationToken cancellationToken);
+}
+
+internal sealed class SystemAsyncDelay : IAsyncDelay
+{
+    public Task WaitAsync(TimeSpan delay, CancellationToken cancellationToken) =>
+        Task.Delay(delay, cancellationToken);
+}
+
+internal interface IAsyncTaskRace
+{
+    Task<Task> WhenAnyAsync(Task first, Task second);
+}
+
+internal sealed class SystemAsyncTaskRace : IAsyncTaskRace
+{
+    public Task<Task> WhenAnyAsync(Task first, Task second) => Task.WhenAny(first, second);
 }
 
 internal sealed class HidReportProcessor

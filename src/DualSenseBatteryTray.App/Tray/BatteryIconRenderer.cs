@@ -12,6 +12,8 @@ using MediaPen = System.Windows.Media.Pen;
 
 namespace DualSenseBatteryTray.App.Tray;
 
+internal enum ControllerGlyphDetail { Minimal, Full }
+
 public static class BatteryIconRenderer
 {
     internal readonly record struct PercentageLayers(BitmapSource Number, BitmapSource Percent);
@@ -23,6 +25,22 @@ public static class BatteryIconRenderer
     private const string ChargingPath = "M8.25 4.5 6.5 7.75H8L7.25 10.75 10 7H8.5L9.5 4.5Z";
     private const string MergedChargingPath =
         "M3.25 11 1.75 12.75H3L2.5 14.5 4.75 12H3.5L4.25 11Z";
+    private const string RefinedDualSenseShellPath =
+        "M3.25 4.15 C2.7 4.3 2.4 5 2.1 5.8 " +
+        "L1.15 9.25 C0.73 10.9 0.97 12.3 2.05 12.7 " +
+        "C2.87 13 3.5 12.5 3.9 11.55 L4.82 9.5 " +
+        "C5.02 9.05 5.37 8.85 5.92 8.85 H10.08 " +
+        "C10.63 8.85 10.98 9.05 11.18 9.5 L12.1 11.55 " +
+        "C12.5 12.5 13.13 13 13.95 12.7 " +
+        "C15.03 12.3 15.27 10.9 14.85 9.25 L13.9 5.8 " +
+        "C13.6 5 13.3 4.3 12.75 4.15 L10.7 3.8 H5.3 Z";
+    private const string RefinedDualSenseShouldersPath =
+        "M3.25 4.25 L3.5 3.3 L5.05 3.05 L5.2 3.9 " +
+        "M10.8 3.9 L10.95 3.05 L12.5 3.3 L12.75 4.25";
+    private const string RefinedDualSenseTouchpadPath =
+        "M5.35 3.85 H10.65 L10.3 6.1 " +
+        "C10.22 6.65 9.88 6.92 9.35 6.92 H6.65 " +
+        "C6.12 6.92 5.78 6.65 5.7 6.1 Z";
     private static readonly int[] NativeIconSizes = [16, 24, 32, 48];
     private static readonly DrawingColor Outline = DrawingColor.FromArgb(255, 20, 22, 27);
     private static readonly DrawingColor White = DrawingColor.FromArgb(255, 255, 255, 255);
@@ -45,6 +63,12 @@ public static class BatteryIconRenderer
         CreateFrozenGeometry(ChargingPath);
     private static readonly Geometry MergedChargingGeometry =
         CreateFrozenGeometry(MergedChargingPath);
+    private static readonly Geometry RefinedDualSenseShell =
+        CreateFrozenGeometry(RefinedDualSenseShellPath);
+    private static readonly Geometry RefinedDualSenseShoulders =
+        CreateFrozenGeometry(RefinedDualSenseShouldersPath);
+    private static readonly Geometry RefinedDualSenseTouchpad =
+        CreateFrozenGeometry(RefinedDualSenseTouchpadPath);
     private static readonly Lazy<BitmapSource> ConnectedLightController = new(
         () => LoadFrozenResourceBitmap(
             "/DualSenseBatteryTray.App;component/Assets/Tray/dualsense-connected-light.png"));
@@ -130,6 +154,102 @@ public static class BatteryIconRenderer
             context.Pop();
         }
         return RenderVisual(visual, size);
+    }
+
+    internal static ControllerGlyphDetail SelectControllerGlyphDetail(int size) => size switch
+    {
+        16 => ControllerGlyphDetail.Minimal,
+        24 or 32 or 48 => ControllerGlyphDetail.Full,
+        _ => throw new ArgumentOutOfRangeException(nameof(size), size, null),
+    };
+
+    internal static BitmapSource RenderControllerDetailLayer(int size)
+    {
+        _ = SelectControllerGlyphDetail(size);
+        var visual = new DrawingVisual();
+        if (size == 16)
+            return RenderVisual(visual, size);
+
+        using (var context = visual.RenderOpen())
+        {
+            var scale = size / 16d;
+            context.PushTransform(new ScaleTransform(scale, scale));
+            DrawFullControllerDetails(context, new SolidColorBrush(OutlineMedia), scale);
+            context.Pop();
+        }
+        return RenderVisual(visual, size);
+    }
+
+    internal static BitmapSource RenderDisconnectedWindowGlyph(int size) =>
+        RenderControllerGlyphCore(
+            size,
+            MediaBrushes.White,
+            new SolidColorBrush(OutlineMedia),
+            new SolidColorBrush(OutlineMedia),
+            new SolidColorBrush(OutlineMedia));
+
+    internal static BitmapSource RenderConnectedControllerGlyph(TrayTheme theme, int size)
+    {
+        var (body, details) = theme switch
+        {
+            TrayTheme.DarkTaskbar => (MediaBrushes.White, new SolidColorBrush(OutlineMedia)),
+            TrayTheme.LightTaskbar => (new SolidColorBrush(OutlineMedia), MediaBrushes.White),
+            _ => throw new ArgumentOutOfRangeException(nameof(theme), theme, null),
+        };
+        return RenderControllerGlyphCore(
+            size,
+            body,
+            body,
+            CreateFrozenBrush(87, 151, 246),
+            details);
+    }
+
+    private static BitmapSource RenderControllerGlyphCore(
+        int size,
+        MediaBrush body,
+        MediaBrush outline,
+        MediaBrush touchpad,
+        MediaBrush details)
+    {
+        var detail = SelectControllerGlyphDetail(size);
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            var scale = (size - 2d) / 16d;
+            context.PushTransform(new TranslateTransform(1, 1));
+            context.PushTransform(new ScaleTransform(scale, scale));
+            var shellPen = new MediaPen(outline, 1d / scale);
+            var touchpadPen = new MediaPen(outline, 0.5d / scale);
+
+            context.DrawGeometry(body, shellPen, RefinedDualSenseShell);
+            context.DrawGeometry(null, shellPen, RefinedDualSenseShoulders);
+            context.DrawGeometry(touchpad, touchpadPen, RefinedDualSenseTouchpad);
+            if (detail == ControllerGlyphDetail.Full)
+                DrawFullControllerDetails(context, details, scale);
+
+            context.Pop();
+            context.Pop();
+        }
+        return RenderVisual(visual, size);
+    }
+
+    private static void DrawFullControllerDetails(
+        DrawingContext context,
+        MediaBrush brush,
+        double scale)
+    {
+        var pen = new MediaPen(brush, 1d / scale);
+
+        context.DrawLine(pen, new System.Windows.Point(3.65, 7.15), new System.Windows.Point(3.65, 9.35));
+        context.DrawLine(pen, new System.Windows.Point(2.55, 8.25), new System.Windows.Point(4.75, 8.25));
+
+        context.DrawEllipse(brush, null, new System.Windows.Point(11.8, 7.2), 0.34, 0.34);
+        context.DrawEllipse(brush, null, new System.Windows.Point(12.75, 8.15), 0.34, 0.34);
+        context.DrawEllipse(brush, null, new System.Windows.Point(11.8, 9.1), 0.34, 0.34);
+        context.DrawEllipse(brush, null, new System.Windows.Point(10.85, 8.15), 0.34, 0.34);
+
+        context.DrawEllipse(null, pen, new System.Windows.Point(6.45, 9.65), 0.55, 0.55);
+        context.DrawEllipse(null, pen, new System.Windows.Point(9.55, 9.65), 0.55, 0.55);
     }
 
     internal static BitmapSource RenderCompact(BatteryState state, TrayTheme theme, int size)
@@ -435,6 +555,27 @@ public static class BatteryIconRenderer
     internal static DrawingIcon RenderTrayIcon(BatteryState state, int nativeSize)
         => RenderTrayIcon(state, nativeSize, Render);
 
+    internal static DrawingIcon RenderWindowSmallIcon()
+    {
+        var requested = System.Windows.Forms.SystemInformation.SmallIconSize.Width;
+        var nativeSize = NativeIconSizes
+            .OrderBy(size => Math.Abs(size - requested))
+            .ThenByDescending(size => size)
+            .First();
+        return RenderWindowSmallIcon(nativeSize);
+    }
+
+    internal static DrawingIcon RenderWindowSmallIcon(int nativeSize)
+    {
+        if (!NativeIconSizes.Contains(nativeSize))
+            throw new ArgumentOutOfRangeException(nameof(nativeSize), nativeSize, null);
+
+        var bytes = EncodeIcon(RenderDisconnectedWindowGlyph);
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var icon = new DrawingIcon(stream, nativeSize, nativeSize);
+        return (DrawingIcon)icon.Clone();
+    }
+
     private static DrawingIcon RenderTrayIcon(
         BatteryState state,
         int nativeSize,
@@ -481,32 +622,39 @@ public static class BatteryIconRenderer
     private static byte[] EncodeIcon(
         BatteryState state,
         Func<BatteryState, int, BitmapSource> renderFrame)
+        => EncodeIconFrames(NativeIconSizes.Select(size => (size, renderFrame(state, size))));
+
+    private static byte[] EncodeIcon(Func<int, BitmapSource> renderFrame) =>
+        EncodeIconFrames(NativeIconSizes.Select(size => (size, renderFrame(size))));
+
+    private static byte[] EncodeIconFrames(
+        IEnumerable<(int Size, BitmapSource Frame)> frames)
     {
-        var frameData = NativeIconSizes
-            .Select(size => EncodePng(renderFrame(state, size)))
+        var items = frames
+            .Select(item => (item.Size, Data: EncodePng(item.Frame)))
             .ToArray();
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream);
         writer.Write((ushort)0);
         writer.Write((ushort)1);
-        writer.Write((ushort)NativeIconSizes.Length);
+        writer.Write((ushort)items.Length);
 
-        var imageOffset = 6 + (NativeIconSizes.Length * 16);
-        for (var index = 0; index < NativeIconSizes.Length; index++)
+        var imageOffset = 6 + (items.Length * 16);
+        foreach (var item in items)
         {
-            writer.Write((byte)NativeIconSizes[index]);
-            writer.Write((byte)NativeIconSizes[index]);
+            writer.Write((byte)item.Size);
+            writer.Write((byte)item.Size);
             writer.Write((byte)0);
             writer.Write((byte)0);
             writer.Write((ushort)1);
             writer.Write((ushort)32);
-            writer.Write((uint)frameData[index].Length);
+            writer.Write((uint)item.Data.Length);
             writer.Write((uint)imageOffset);
-            imageOffset += frameData[index].Length;
+            imageOffset += item.Data.Length;
         }
 
-        foreach (var frame in frameData)
-            writer.Write(frame);
+        foreach (var item in items)
+            writer.Write(item.Data);
         writer.Flush();
         return stream.ToArray();
     }
@@ -526,11 +674,7 @@ public static class BatteryIconRenderer
         int size)
     {
         ValidateStateAndSize(state, size);
-        var visual = new DrawingVisual();
-        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
-        using (var context = visual.RenderOpen())
-            context.DrawImage(SelectConnectedController(theme), GetConnectedControllerBounds(size));
-        return RenderVisual(visual, size);
+        return RenderConnectedControllerGlyph(theme, size);
     }
 
     private static System.Windows.Rect GetConnectedControllerBounds(int size) =>

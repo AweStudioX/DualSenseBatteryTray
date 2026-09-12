@@ -22,23 +22,23 @@ internal sealed class DeviceNotificationWindow : NativeWindow, IDisposable
     private bool _sessionNotificationRegistered;
     private bool _disposed;
 
-    internal DeviceNotificationWindow(Action presenceCheck)
+    internal DeviceNotificationWindow(Action requestCheck)
         : this(
-            presenceCheck,
+            requestCheck,
             static handle => WTSRegisterSessionNotification(handle, NotifyForThisSession),
             static handle => WTSUnRegisterSessionNotification(handle))
     {
     }
 
     internal DeviceNotificationWindow(
-        Action presenceCheck,
+        Action requestCheck,
         Func<nint, bool> registerSessionNotification,
         Func<nint, bool> unregisterSessionNotification)
     {
         ArgumentNullException.ThrowIfNull(registerSessionNotification);
         _unregisterSessionNotification = unregisterSessionNotification
             ?? throw new ArgumentNullException(nameof(unregisterSessionNotification));
-        _arrivalDebouncer = new DeviceArrivalDebouncer(presenceCheck);
+        _arrivalDebouncer = new DeviceArrivalDebouncer(requestCheck);
 
         CreateHandle(new CreateParams
         {

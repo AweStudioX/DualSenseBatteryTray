@@ -1,11 +1,41 @@
 using System.Reflection;
 using DualSenseBatteryTray.App.Logging;
+using DualSenseBatteryTray.Hid;
 
 namespace DualSenseBatteryTray.App.Tests;
 
 public sealed class BoundedFileLoggerTests
 {
     private const long MaximumLogBytes = 1_048_576;
+
+    [Fact]
+    public void Stale_entry_contains_only_the_fixed_generic_failure_description()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            var logger = new BoundedFileLogger(directory);
+
+            logger.Log("controller.stale", new ControllerReportsStaleException());
+
+            var entry = File.ReadAllText(Path.Combine(directory, "app.log"));
+            Assert.Contains("event=controller.stale", entry, StringComparison.Ordinal);
+            Assert.Contains(
+                "The physical DualSense input report stopped progressing.",
+                entry,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain("VID_", entry, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("PID_", entry, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("report=", entry, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("button=", entry, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("path=", entry, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 
     [Fact]
     public void Log_rotates_at_one_mibibyte_and_retains_exactly_one_backup()

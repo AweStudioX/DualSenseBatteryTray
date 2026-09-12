@@ -30,6 +30,52 @@ public sealed class BatteryIconRendererTests
     }
 
     [Theory]
+    [InlineData(16, ControllerGlyphDetail.Minimal)]
+    [InlineData(24, ControllerGlyphDetail.Full)]
+    [InlineData(32, ControllerGlyphDetail.Full)]
+    [InlineData(48, ControllerGlyphDetail.Full)]
+    public void Controller_glyph_selects_detail_by_native_size(
+        int size,
+        object expected) =>
+        Assert.Equal(expected, BatteryIconRenderer.SelectControllerGlyphDetail(size));
+
+    [Theory]
+    [InlineData(16)]
+    [InlineData(24)]
+    [InlineData(32)]
+    [InlineData(48)]
+    public void Disconnected_window_glyph_is_bounded_dark_edged_and_unlit(int size)
+    {
+        var image = BatteryIconRenderer.RenderDisconnectedWindowGlyph(size);
+        var pixels = CopyPixels(image);
+        var bounds = GetOpaqueBounds(image);
+
+        Assert.True(bounds.Left > 0 && bounds.Top > 0);
+        Assert.True(bounds.Left + bounds.Width < size);
+        Assert.True(bounds.Top + bounds.Height < size);
+        Assert.Contains(pixels, IsLightControllerPixel);
+        Assert.Contains(pixels, IsDarkOutlinePixel);
+        Assert.DoesNotContain(pixels, IsConnectedBluePixel);
+    }
+
+    [Fact]
+    public void Sixteen_pixel_controller_omits_micro_detail_layer()
+    {
+        var layer = BatteryIconRenderer.RenderControllerDetailLayer(16);
+        Assert.All(CopyPixels(layer), pixel => Assert.Equal(0, pixel.Alpha));
+    }
+
+    [Theory]
+    [InlineData(24)]
+    [InlineData(32)]
+    [InlineData(48)]
+    public void Larger_controller_frames_restore_micro_details(int size)
+    {
+        var layer = BatteryIconRenderer.RenderControllerDetailLayer(size);
+        Assert.Contains(CopyPixels(layer), pixel => pixel.Alpha != 0);
+    }
+
+    [Theory]
     [InlineData(10, "10")]
     [InlineData(75, "75")]
     [InlineData(100, "100")]
@@ -407,9 +453,30 @@ public sealed class BatteryIconRendererTests
         using var icon = BatteryIconRenderer.RenderControllerTrayIcon(
             new BatteryState(55, ConnectionState.Discharging),
             TrayTheme.DarkTaskbar);
-        var frame = DecodeFrames(icon)[48];
 
-        Assert.Contains(CopyPixels(frame), IsConnectedBluePixel);
+        foreach (var frame in DecodeFrames(icon).Values)
+            Assert.Contains(CopyPixels(frame), IsConnectedBluePixel);
+    }
+
+    [Theory]
+    [InlineData((int)TrayTheme.DarkTaskbar, true)]
+    [InlineData((int)TrayTheme.LightTaskbar, false)]
+    public void Connected_glyph_is_theme_aware_and_blue(int themeValue, bool lightBody)
+    {
+        const int size = 16;
+        var image = BatteryIconRenderer.RenderConnectedControllerGlyph((TrayTheme)themeValue, size);
+        var pixels = CopyPixels(image);
+
+        Assert.Contains(pixels, IsConnectedBluePixel);
+        Assert.True(HasOpaqueEdgeColor(pixels, size, lightBody));
+    }
+
+    [Fact]
+    public void Window_small_icon_is_owned_and_contains_all_native_frames()
+    {
+        using var icon = BatteryIconRenderer.RenderWindowSmallIcon(16);
+        Assert.Equal(new System.Drawing.Size(16, 16), icon.Size);
+        Assert.Equal([16, 24, 32, 48], DecodeFrames(icon).Keys.Order().ToArray());
     }
 
     [Fact]

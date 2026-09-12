@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Interop;
+using DualSenseBatteryTray.App.Shell;
 using DualSenseBatteryTray.App.Tray;
 using DualSenseBatteryTray.Core.Battery;
 
@@ -8,9 +10,11 @@ namespace DualSenseBatteryTray.App;
 
 public partial class MainWindow : Window
 {
-    private static readonly System.Windows.Media.ImageSource ApplicationIcon =
+    private readonly System.Windows.Media.ImageSource ApplicationIcon =
         BatteryIconRenderer.RenderApplicationIcon();
 
+    private readonly WindowSmallIconController _smallIcon = new(
+        BatteryIconRenderer.RenderWindowSmallIcon);
     private readonly MainWindowViewModel _viewModel = new();
     private bool _isShuttingDown;
 
@@ -20,6 +24,8 @@ public partial class MainWindow : Window
         DataContext = _viewModel;
         Icon = ApplicationIcon;
         TaskbarItemInfo.Overlay = null;
+        SourceInitialized += OnSourceInitialized;
+        Closed += (_, _) => _smallIcon.Dispose();
         Closing += OnClosing;
     }
 
@@ -44,6 +50,9 @@ public partial class MainWindow : Window
         _isShuttingDown = true;
         Close();
     }
+
+    private void OnSourceInitialized(object? sender, EventArgs eventArgs) =>
+        _smallIcon.Apply(new WindowInteropHelper(this).Handle);
 
     private void OnClosing(object? sender, CancelEventArgs eventArgs)
     {

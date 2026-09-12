@@ -1,21 +1,25 @@
 using System.Runtime.InteropServices;
-using DualSenseBatteryTray.Core.Devices;
+using DualSenseBatteryTray.Hid;
 
 namespace DualSenseBatteryTray.Watcher.Tests;
 
 public sealed class WatcherDecisionTests
 {
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(true, false, true)]
-    [InlineData(false, true, false)]
-    public void ShouldStart_requires_controller_presence_and_an_absent_app(
-        bool controllerPresent,
+    [InlineData(ControllerLivenessProbeResult.AdapterAbsent, false, false)]
+    [InlineData(ControllerLivenessProbeResult.Insufficient, false, false)]
+    [InlineData(ControllerLivenessProbeResult.Stale, false, false)]
+    [InlineData(ControllerLivenessProbeResult.Progressing, false, true)]
+    [InlineData(ControllerLivenessProbeResult.AdapterAbsent, true, false)]
+    [InlineData(ControllerLivenessProbeResult.Insufficient, true, false)]
+    [InlineData(ControllerLivenessProbeResult.Stale, true, false)]
+    [InlineData(ControllerLivenessProbeResult.Progressing, true, false)]
+    public void ShouldStart_requires_progressing_reports_and_an_absent_app(
+        ControllerLivenessProbeResult liveness,
         bool appAlreadyRunning,
         bool expected)
     {
-        var result = WatcherDecision.ShouldStart(controllerPresent, appAlreadyRunning);
+        var result = WatcherDecision.ShouldStart(liveness, appAlreadyRunning);
 
         Assert.Equal(expected, result);
     }
@@ -318,22 +322,6 @@ public sealed class WatcherDecisionTests
     }
 
     [Fact]
-    public void Startup_check_uses_the_USB_DualSense_identity_and_starts_once()
-    {
-        var presence = new RecordingPresence(present: true);
-        var startCount = 0;
-        var launcher = new WatcherLauncher(
-            presence,
-            () => false,
-            () => startCount++);
-
-        launcher.CheckAndStart();
-
-        Assert.Same(ControllerIdentity.UsbDualSense, presence.Identity);
-        Assert.Equal(1, startCount);
-    }
-
-    [Fact]
     public void App_mutex_name_matches_the_tray_application_contract()
     {
         const string sid = "S-1-5-21-123";
@@ -389,17 +377,6 @@ public sealed class WatcherDecisionTests
             Path.Combine(installDirectory, "DualSenseBatteryTray.App.exe"),
             startInfo.FileName);
         Assert.True(startInfo.UseShellExecute);
-    }
-
-    private sealed class RecordingPresence(bool present) : IControllerPresence
-    {
-        public ControllerIdentity? Identity { get; private set; }
-
-        public bool IsPresent(ControllerIdentity identity)
-        {
-            Identity = identity;
-            return present;
-        }
     }
 
     private sealed class ControlledDebounceDelay : IDebounceDelay
