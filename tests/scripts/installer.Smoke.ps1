@@ -96,7 +96,7 @@ function New-FailingUpgradeSetup {
         "/DOUTPUT_FILE=$output",
         $source
     )
-    & $MakensisPath @arguments
+    & $MakensisPath @arguments | Out-Host
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $output -PathType Leaf)) {
         throw 'Could not compile failed-upgrade fixture.'
     }
