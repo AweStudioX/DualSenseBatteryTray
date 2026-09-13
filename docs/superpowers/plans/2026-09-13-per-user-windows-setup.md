@@ -24,7 +24,7 @@
 
 - Create `installer/DualSenseBatteryTray.nsi`: wizard, payload staging, PowerShell handoff, HKCU product metadata, shortcuts, uninstaller.
 - Create `scripts/build-installer.ps1`: validate inputs and compiler, invoke `makensis.exe` with explicit paths/version/output.
-- Create `tests/scripts/installer.Tests.ps1`: static/build contract tests that do not install on the developer's machine.
+- Create `tests/scripts/installer.Tests.ps1`: build behavior tests that do not install on the developer's machine.
 - Create `tests/scripts/installer.Smoke.ps1`: opt-in destructive-on-current-user runner test for fresh install, upgrade, failure, and uninstall.
 - Modify `.github/workflows/release.yml`: fetch verified compiler, build installer, run smoke test, attach Setup.exe and checksums; allow branch preflight via `workflow_dispatch` without publishing.
 - Modify `README.md`: Setup.exe primary install/uninstall path and ZIP fallback.
@@ -44,15 +44,15 @@
 - Consumes: published `DualSenseBatteryTray.App.exe`, `DualSenseBatteryTray.Watcher.exe`; existing `scripts/install.ps1`, `scripts/uninstall.ps1`, `scripts/device-watcher-task.xml`.
 - Produces: `scripts/build-installer.ps1 -PublishDirectory <absolute directory> -MakensisPath <absolute exe> -Version <semver> -OutputPath <absolute exe>`; installer supports NSIS `/S` and uninstaller `/S`.
 
-- [ ] **Step 1: Add failing contract tests.** In `tests/scripts/installer.Tests.ps1`, assert that the NSIS source and build script exist, the source declares `RequestExecutionLevel user` and fixed `$LOCALAPPDATA\Programs\DualSenseBatteryTray`, and the build script rejects a missing publish executable or invalid `1.0.0;...` version. Use Pester `Test-Path`, `Get-Content -Raw`, and `Should -Throw`; do not run Setup.exe here.
+- [ ] **Step 1: Add failing contract tests.** In `tests/scripts/installer.Tests.ps1`, invoke the real build script with an invalid version and with a missing publish executable; assert precise failures. With a verified NSIS compiler available, compile a Setup.exe from two nonempty dummy files and assert a nonempty result. Do not run Setup.exe here.
 
 ```powershell
-Describe 'Per-user setup contract' {
-    It 'has a fixed per-user target and never requests elevation' {
-        $source = Get-Content (Join-Path $projectRoot 'installer\DualSenseBatteryTray.nsi') -Raw
-        $source | Should -Match 'RequestExecutionLevel user'
-        $source | Should -Match '\$LOCALAPPDATA\\Programs\\DualSenseBatteryTray'
-        $source | Should -Not -Match 'RequestExecutionLevel admin'
+Describe 'Windows Setup build' {
+    It 'rejects an invalid version before invoking the compiler' {
+        {
+            & $buildScript -PublishDirectory $TestDrive -MakensisPath $makensisPath `
+                -Version '1.0.1; malicious' -OutputPath (Join-Path $TestDrive 'Setup.exe')
+        } | Should -Throw '*Invalid version*'
     }
 }
 ```
@@ -160,20 +160,11 @@ on:
 - Consumes: the verified Setup.exe/ZIP workflow from Task 2.
 - Produces: clear public install/uninstall instructions and the v1.0.1 release assets.
 
-- [ ] **Step 1: Add a failing documentation check.** Extend `tests/scripts/installer.Tests.ps1` to assert README mentions `Setup.exe`, Installed apps uninstall, `%LOCALAPPDATA%\Programs\DualSenseBatteryTray`, no .NET runtime, ZIP fallback, and unsigned/SmartScreen behavior. Run Pester and expect this new test to fail.
+- [ ] **Step 1: Update README.** Lead with downloading/running `DualSenseBatteryTray-v1.0.1-win-x64-Setup.exe`; explain current-user/no admin/fixed location, bundled .NET, Watcher logon task and controller-live-only tray UI, Windows Installed apps removal, unsigned SmartScreen notice, and ZIP plus `install.ps1`/`uninstall.ps1` fallback. State ZIP is not portable. Review the rendered Markdown manually; do not add a source-text test for human prose.
 
-```powershell
-$readme = Get-Content (Join-Path $projectRoot 'README.md') -Raw
-$readme | Should -Match 'Setup\.exe'
-$readme | Should -Match 'Installed apps'
-$readme | Should -Match 'SmartScreen'
-```
+- [ ] **Step 2: Re-run source and package checks.** Run Pester, .NET tests, `git diff --check`, inspect source for secrets and user-specific paths, and ensure only expected distributable files are included. Commit: `git add README.md docs/superpowers/plans/2026-09-13-per-user-windows-setup.md` and `git commit -m "docs: make setup the primary download"`.
 
-- [ ] **Step 2: Update README.** Lead with downloading/running `DualSenseBatteryTray-v1.0.1-win-x64-Setup.exe`; explain current-user/no admin/fixed location, bundled .NET, Watcher logon task and controller-live-only tray UI, Windows Installed apps removal, unsigned SmartScreen notice, and ZIP plus `install.ps1`/`uninstall.ps1` fallback. State ZIP is not portable.
-
-- [ ] **Step 3: Re-run documentation, source, and package checks.** Run Pester, .NET tests, `git diff --check`, inspect source for secrets and user-specific paths, and ensure only expected distributable files are included. Commit: `git add README.md tests/scripts/installer.Tests.ps1` and `git commit -m "docs: make setup the primary download"`.
-
-- [ ] **Step 4: Publish only after preflight succeeds.** Merge/push the reviewed source changes to the public repository's main branch; check `git status --short` is empty and that `v1.0.1` does not already exist locally or remotely. Create exactly one annotated `v1.0.1` tag at the verified commit, push the tag, wait for the Release workflow, and inspect the public GitHub Release. Confirm Setup.exe, ZIP, and both `.sha256` files are directly downloadable; compare downloaded asset hashes with sidecars. Do not overwrite v1.0.0 or create a second v1.0.1 tag if the workflow fails—repair the release process without retagging silently.
+- [ ] **Step 3: Publish only after preflight succeeds.** Merge/push the reviewed source changes to the public repository's main branch; check `git status --short` is empty and that `v1.0.1` does not already exist locally or remotely. Create exactly one annotated `v1.0.1` tag at the verified commit, push the tag, wait for the Release workflow, and inspect the public GitHub Release. Confirm Setup.exe, ZIP, and both `.sha256` files are directly downloadable; compare downloaded asset hashes with sidecars. Do not overwrite v1.0.0 or create a second v1.0.1 tag if the workflow fails—repair the release process without retagging silently.
 
 ```powershell
 git tag -a v1.0.1 -m "DualSense Battery Tray v1.0.1"

@@ -2,13 +2,17 @@
 
 ## Install
 
-Download the `win-x64.zip` archive from the latest GitHub Release, extract it, and run:
+Download `DualSenseBatteryTray-v1.0.1-win-x64-Setup.exe` from the [latest GitHub Release](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) and run it. This is one per-user installer: it bundles the App, background Watcher, and .NET runtime, so there is no second download or administrator prompt. It installs to `%LOCALAPPDATA%\Programs\DualSenseBatteryTray`, registers the Watcher to start at Windows sign-in, and appears in Windows **Installed apps**. The tray App still appears only while a live controller is detected.
+
+To remove it, use Windows **Settings → Apps → Installed apps → DualSense Battery Tray → Uninstall**, or the Start Menu uninstall shortcut. The installer is currently unsigned, so Windows SmartScreen may show a warning; verify the release download and its `.sha256` checksum before choosing to run it.
+
+The `win-x64.zip` archive remains available for manual installation. It is not a portable edition. Extract it and run:
 
 ```powershell
 .\install.ps1 -PublishDirectory .\publish
 ```
 
-The installer deploys the App and Watcher for the current Windows user and registers the logon task. To remove them, run `uninstall.ps1` from the extracted archive.
+This PowerShell route installs the same App, Watcher, and logon task for the current user. If you installed from ZIP, remove it with `uninstall.ps1` from the extracted archive. If you installed with Setup.exe, use Windows Installed apps instead.
 
 ## Behavior
 
@@ -25,4 +29,4 @@ The installer deploys the App and Watcher for the current Windows user and regis
 
 ## Releases
 
-Pushing a SemVer tag such as `v1.0.0` runs the Windows Release workflow. It tests the solution, publishes self-contained `win-x64` App and Watcher executables, packages the installer files, emits a SHA-256 checksum, and creates the matching GitHub Release.
+Pushing a version tag such as `v1.0.1` runs the Windows Release workflow. It tests the solution, publishes self-contained `win-x64` App and Watcher executables, builds and smoke-tests Setup.exe, then attaches Setup.exe, the manual-install ZIP, and a SHA-256 checksum for each to the GitHub Release. A manual workflow run validates the same packages without publishing a release.
