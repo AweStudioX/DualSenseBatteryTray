@@ -4,6 +4,13 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to validate without publishing"
+        required: true
+        default: "1.0.1"
+        type: string
 
 permissions:
   contents: write
@@ -27,20 +34,36 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Validate release tag
+      - name: Validate version
         id: version
         shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if ($env:GITHUB_REF_NAME -notmatch '^v(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$') {
-            throw "Release tags must use SemVer with a v prefix, for example v1.0.0."
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            if ($env:GITHUB_REF_NAME -notmatch '^v(?<version>\d+\.\d+\.\d+)$') {
+              throw "Release tags must use vMAJOR.MINOR.PATCH, for example v1.0.1."
+            }
+            $version = $Matches.version
           }
-          "version=$($Matches.version)" >> $env:GITHUB_OUTPUT
+          else {
+            if ($env:INPUT_VERSION -notmatch '^\d+\.\d+\.\d+$') {
+              throw "Preflight version must use MAJOR.MINOR.PATCH."
+            }
+            $version = $env:INPUT_VERSION
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
 
       - name: Restore
         run: dotnet restore DualSenseBatteryTray.sln --runtime win-x64
 
       - name: Test
         run: dotnet test DualSenseBatteryTray.sln --configuration Release --no-restore
+
+      - name: Test installer build contracts
+        shell: pwsh
+        run: Invoke-Pester tests/scripts/installer.Tests.ps1 -CI
 
       - name: Publish App
         shell: pwsh
@@ -70,11 +93,70 @@ jobs:
             -p:Version=${{ steps.version.outputs.version }} `
             --output "$env:RUNNER_TEMP\watcher-publish"
 
+      - name: Fetch verified NSIS 3.12
+        id: nsis
+        shell: pwsh
+        run: |
+          $expected = '56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f'
+          $archive = Join-Path $env:RUNNER_TEMP 'nsis-3.12.zip'
+          $sources = @(
+            'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.12/nsis-3.12.zip',
+            'https://fossies.org/windows/misc/nsis-3.12.zip'
+          )
+          $verified = $false
+          foreach ($source in $sources) {
+            try {
+              Invoke-WebRequest -Uri $source -OutFile $archive -MaximumRedirection 10 -ErrorAction Stop
+              $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -eq $expected) {
+                $verified = $true
+                break
+              }
+              Write-Warning "NSIS source returned unexpected SHA-256: $source"
+            }
+            catch {
+              Write-Warning "NSIS download failed from $source`: $($_.Exception.Message)"
+            }
+          }
+          if (-not $verified) { throw 'No NSIS download matched the pinned SHA-256.' }
+          $destination = Join-Path $env:RUNNER_TEMP 'verified-nsis'
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination
+          $compiler = Join-Path $destination 'nsis-3.12\makensis.exe'
+          if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) {
+            throw "Verified NSIS archive had no compiler at '$compiler'."
+          }
+          "compiler=$compiler" >> $env:GITHUB_OUTPUT
+
+      - name: Build Setup.exe
+        id: setup
+        shell: pwsh
+        run: |
+          $published = Join-Path $env:RUNNER_TEMP 'installer-publish'
+          New-Item -ItemType Directory -Path $published -Force | Out-Null
+          Copy-Item "$env:RUNNER_TEMP\app-publish\DualSenseBatteryTray.App.exe" $published
+          Copy-Item "$env:RUNNER_TEMP\watcher-publish\DualSenseBatteryTray.Watcher.exe" $published
+          $name = "DualSenseBatteryTray-${{ steps.version.outputs.tag }}-win-x64-Setup.exe"
+          $setup = Join-Path $env:GITHUB_WORKSPACE $name
+          & scripts/build-installer.ps1 `
+            -PublishDirectory $published `
+            -MakensisPath '${{ steps.nsis.outputs.compiler }}' `
+            -Version '${{ steps.version.outputs.version }}' `
+            -OutputPath $setup
+          "publish=$published" >> $env:GITHUB_OUTPUT
+          "setup=$setup" >> $env:GITHUB_OUTPUT
+
+      - name: Smoke-test Setup install, upgrade, and uninstall
+        shell: pwsh
+        run: |
+          & tests/scripts/installer.Smoke.ps1 `
+            -SetupPath '${{ steps.setup.outputs.setup }}' `
+            -LegacyPublishDirectory '${{ steps.setup.outputs.publish }}'
+
       - name: Assemble release archive
         id: package
         shell: pwsh
         run: |
-          $archiveBase = "DualSenseBatteryTray-$env:GITHUB_REF_NAME-win-x64"
+          $archiveBase = "DualSenseBatteryTray-${{ steps.version.outputs.tag }}-win-x64"
           $packageRoot = Join-Path $env:RUNNER_TEMP $archiveBase
           $payload = Join-Path $packageRoot 'publish'
           New-Item -ItemType Directory -Path $payload -Force | Out-Null
@@ -96,7 +178,31 @@ jobs:
           "archive=$archive" >> $env:GITHUB_OUTPUT
           "checksum=$archive.sha256" >> $env:GITHUB_OUTPUT
 
+      - name: Checksum Setup.exe
+        id: setup_checksum
+        shell: pwsh
+        run: |
+          $setup = '${{ steps.setup.outputs.setup }}'
+          $checksum = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$checksum  $(Split-Path -Leaf $setup)" | Set-Content `
+            -LiteralPath "$setup.sha256" `
+            -Encoding ascii `
+            -NoNewline
+          "checksum=$setup.sha256" >> $env:GITHUB_OUTPUT
+
+      - name: Upload preflight assets
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-setup-preflight
+          path: |
+            ${{ steps.setup.outputs.setup }}
+            ${{ steps.setup_checksum.outputs.checksum }}
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.checksum }}
+
       - name: Create GitHub Release
+        if: github.ref_type == 'tag'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,6 +210,8 @@ jobs:
           gh release create $env:GITHUB_REF_NAME `
             '${{ steps.package.outputs.archive }}' `
             '${{ steps.package.outputs.checksum }}' `
+            '${{ steps.setup.outputs.setup }}' `
+            '${{ steps.setup_checksum.outputs.checksum }}' `
             --verify-tag `
             --title "DualSense Battery Tray $env:GITHUB_REF_NAME" `
             --generate-notes
