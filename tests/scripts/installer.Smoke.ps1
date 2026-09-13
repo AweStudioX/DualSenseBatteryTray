@@ -38,6 +38,16 @@ function Invoke-Uninstaller {
     while ((Test-Path -LiteralPath $installRoot) -and [DateTime]::UtcNow -lt $deadline) {
         Start-Sleep -Milliseconds 200
     }
+    if (Test-Path -LiteralPath $installRoot) {
+        Write-Warning "Uninstaller exited successfully, but the installation directory remains after 30 seconds."
+        Get-ChildItem -LiteralPath $installRoot -Force -Recurse -ErrorAction Continue |
+            Select-Object FullName, Length, Attributes | Format-Table -AutoSize | Out-Host
+        Get-Process -Name 'DualSenseBatteryTray.Watcher', 'DualSenseBatteryTray.App', 'Uninstall' -ErrorAction SilentlyContinue |
+            Select-Object Id, ProcessName, Path | Format-Table -AutoSize | Out-Host
+        Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue |
+            Select-Object TaskName, State | Format-Table -AutoSize | Out-Host
+        Write-Host "Installed apps registration remains: $(Test-Path -LiteralPath $uninstallKey)"
+    }
 }
 
 function Assert-Installed {
@@ -151,6 +161,7 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $installRoot 'DualSenseBatteryTray.App.exe')) 'Legacy install failed.'
     Invoke-Setup $SetupPath
     Assert-Installed
+    Write-Host 'Legacy Setup upgrade succeeded; checking uninstall'
     Invoke-Uninstaller
     Assert-Uninstalled
 
