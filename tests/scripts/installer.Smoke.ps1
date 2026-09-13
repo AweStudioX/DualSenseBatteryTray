@@ -18,6 +18,8 @@ $taskName = 'DualSenseBatteryTray-DeviceWatcher'
 $legacyScript = Join-Path $projectRoot 'scripts\install.ps1'
 $legacyUninstall = Join-Path $projectRoot 'scripts\uninstall.ps1'
 $sentinelCreated = $false
+$menuSentinelCreated = $false
+$menuSentinel = Join-Path $startMenu 'keep-user-file.txt'
 
 function Assert-True([bool] $condition, [string] $message) {
     if (-not $condition) { throw $message }
@@ -52,7 +54,8 @@ function Assert-Installed {
 function Assert-Uninstalled {
     Assert-True (-not (Test-Path -LiteralPath $installRoot)) 'Installation directory remains.'
     Assert-True (-not (Test-Path -LiteralPath $uninstallKey)) 'Installed apps registration remains.'
-    Assert-True (-not (Test-Path -LiteralPath $startMenu)) 'Start Menu shortcuts remain.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $startMenu 'DualSense Battery Tray.lnk'))) 'Launch shortcut remains.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $startMenu 'Uninstall DualSense Battery Tray.lnk'))) 'Uninstall shortcut remains.'
     Assert-True ($null -eq (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)) 'Watcher task remains.'
 }
 
@@ -70,12 +73,25 @@ function New-FailingUpgradeSetup {
     Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSES') -Destination (Join-Path $fixtureRoot 'LICENSES') -Recurse
     [System.IO.File]::WriteAllText((Join-Path $fixtureRoot 'scripts\device-watcher-task.xml'), '<not-a-task />')
 
+    $badPublish = Join-Path $env:RUNNER_TEMP 'dualsense-failed-upgrade-publish'
+    New-Item -ItemType Directory -Path $badPublish -Force | Out-Null
+    foreach ($name in 'DualSenseBatteryTray.App.exe', 'DualSenseBatteryTray.Watcher.exe') {
+        $badExecutable = Join-Path $badPublish $name
+        Copy-Item -LiteralPath (Join-Path $LegacyPublishDirectory $name) -Destination $badExecutable
+        $stream = [System.IO.File]::Open($badExecutable, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write)
+        try {
+            $marker = [System.Text.Encoding]::ASCII.GetBytes('failed-upgrade-fixture')
+            $stream.Write($marker, 0, $marker.Length)
+        }
+        finally { $stream.Dispose() }
+    }
+
     $output = Join-Path $env:RUNNER_TEMP 'dualsense-failed-upgrade-Setup.exe'
     $source = Join-Path $projectRoot 'installer\DualSenseBatteryTray.nsi'
     $arguments = @(
         '/V2',
         "/DPROJECT_ROOT=$fixtureRoot",
-        "/DPUBLISH_DIR=$LegacyPublishDirectory",
+        "/DPUBLISH_DIR=$badPublish",
         '/DPRODUCT_VERSION=1.0.1',
         "/DOUTPUT_FILE=$output",
         $source
@@ -118,8 +134,17 @@ try {
     Assert-True ((Export-ScheduledTask -TaskName $taskName -TaskPath '\') -eq $oldTaskXml) 'Failed upgrade changed the Watcher task.'
     Assert-True ((Get-ItemProperty -LiteralPath $uninstallKey).DisplayVersion -eq $oldRegistry.DisplayVersion) 'Failed upgrade changed Installed apps version.'
     Assert-True ((Get-FileHash -LiteralPath (Join-Path $startMenu 'DualSense Battery Tray.lnk') -Algorithm SHA256).Hash -eq $oldLaunchShortcutHash) 'Failed upgrade changed Start Menu shortcut.'
+
+    Write-Host 'Uninstall preserves user Start Menu content and clears incomplete registration'
+    [System.IO.File]::WriteAllText($menuSentinel, 'user-created-content')
+    $menuSentinelCreated = $true
+    Remove-ItemProperty -LiteralPath $uninstallKey -Name 'DisplayName'
     Invoke-Uninstaller
     Assert-Uninstalled
+    Assert-True ((Get-Content -LiteralPath $menuSentinel -Raw) -eq 'user-created-content') 'Uninstaller removed user Start Menu content.'
+    Remove-Item -LiteralPath $menuSentinel -Force
+    $menuSentinelCreated = $false
+    Remove-Item -LiteralPath $startMenu
 
     Write-Host 'Legacy script-to-Setup upgrade'
     & $legacyScript -PublishDirectory $LegacyPublishDirectory
@@ -150,6 +175,11 @@ finally {
     if ($sentinelCreated -and (Test-Path -LiteralPath $installRoot -PathType Leaf)) {
         Assert-True ((Get-Content -LiteralPath $installRoot -Raw) -eq 'setup-failure-sentinel') 'Unexpected file at sentinel location.'
         Remove-Item -LiteralPath $installRoot -Force
+    }
+    if ($menuSentinelCreated -and (Test-Path -LiteralPath $menuSentinel -PathType Leaf)) {
+        Assert-True ((Get-Content -LiteralPath $menuSentinel -Raw) -eq 'user-created-content') 'Unexpected user Start Menu sentinel content.'
+        Remove-Item -LiteralPath $menuSentinel -Force
+        Remove-Item -LiteralPath $startMenu
     }
 }
 

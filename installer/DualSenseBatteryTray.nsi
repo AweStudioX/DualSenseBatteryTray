@@ -134,11 +134,7 @@ Section "Uninstall"
   IfFileExists "${START_MENU_DIR}" 0 skip_menu_directory
     ClearErrors
     RMDir "${START_MENU_DIR}"
-    IfErrors cleanup_failed
 skip_menu_directory:
-  ClearErrors
-  ReadRegStr $1 HKCU "${PRODUCT_KEY}" "DisplayName"
-  IfErrors uninstall_done
   ClearErrors
   DeleteRegKey HKCU "${PRODUCT_KEY}"
   IfErrors cleanup_failed
@@ -150,7 +146,7 @@ uninstall_failed:
 
 cleanup_failed:
   SetErrorLevel 1
-  Abort "Application files were removed, but Windows registration cleanup was incomplete. Remove the remaining shortcut or Installed apps entry manually."
+  Abort "Application files were removed, but Windows registration cleanup could not be confirmed. Remove any remaining shortcut or Installed apps entry manually."
 
 uninstall_done:
 SectionEnd
