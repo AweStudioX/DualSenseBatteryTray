@@ -40,7 +40,7 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+          if ($env:GITHUB_EVENT_NAME -eq 'push') {
             if ($env:GITHUB_REF_NAME -notmatch '^v(?<version>\d+\.\d+\.\d+)$') {
               throw "Release tags must use vMAJOR.MINOR.PATCH, for example v1.0.1."
             }
@@ -150,7 +150,8 @@ jobs:
         run: |
           & tests/scripts/installer.Smoke.ps1 `
             -SetupPath '${{ steps.setup.outputs.setup }}' `
-            -LegacyPublishDirectory '${{ steps.setup.outputs.publish }}'
+            -LegacyPublishDirectory '${{ steps.setup.outputs.publish }}' `
+            -MakensisPath '${{ steps.nsis.outputs.compiler }}'
 
       - name: Assemble release archive
         id: package
@@ -202,7 +203,7 @@ jobs:
             ${{ steps.package.outputs.checksum }}
 
       - name: Create GitHub Release
-        if: github.ref_type == 'tag'
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

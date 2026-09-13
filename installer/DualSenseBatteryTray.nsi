@@ -123,15 +123,34 @@ Section "Uninstall"
     Goto uninstall_failed
   ${EndIf}
 
-  Delete "${START_MENU_DIR}\DualSense Battery Tray.lnk"
-  Delete "${START_MENU_DIR}\Uninstall DualSense Battery Tray.lnk"
-  RMDir "${START_MENU_DIR}"
+  IfFileExists "${START_MENU_DIR}\DualSense Battery Tray.lnk" 0 +4
+    ClearErrors
+    Delete "${START_MENU_DIR}\DualSense Battery Tray.lnk"
+    IfErrors cleanup_failed
+  IfFileExists "${START_MENU_DIR}\Uninstall DualSense Battery Tray.lnk" 0 +4
+    ClearErrors
+    Delete "${START_MENU_DIR}\Uninstall DualSense Battery Tray.lnk"
+    IfErrors cleanup_failed
+  IfFileExists "${START_MENU_DIR}" 0 skip_menu_directory
+    ClearErrors
+    RMDir "${START_MENU_DIR}"
+    IfErrors cleanup_failed
+skip_menu_directory:
+  ClearErrors
+  ReadRegStr $1 HKCU "${PRODUCT_KEY}" "DisplayName"
+  IfErrors uninstall_done
+  ClearErrors
   DeleteRegKey HKCU "${PRODUCT_KEY}"
+  IfErrors cleanup_failed
   Goto uninstall_done
 
 uninstall_failed:
   SetErrorLevel 1
   Abort "Uninstallation failed. Installed apps entry was kept so you can retry."
+
+cleanup_failed:
+  SetErrorLevel 1
+  Abort "Application files were removed, but Windows registration cleanup was incomplete. Remove the remaining shortcut or Installed apps entry manually."
 
 uninstall_done:
 SectionEnd

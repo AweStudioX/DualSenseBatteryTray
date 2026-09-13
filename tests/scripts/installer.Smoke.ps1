@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string] $SetupPath,
-    [Parameter(Mandatory)] [string] $LegacyPublishDirectory
+    [Parameter(Mandatory)] [string] $LegacyPublishDirectory,
+    [Parameter(Mandatory)] [string] $MakensisPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,6 +44,8 @@ function Assert-Installed {
     Assert-True (Test-Path -LiteralPath (Join-Path $installRoot 'Uninstall.exe') -PathType Leaf) 'Installed uninstaller is missing.'
     Assert-True (Test-Path -LiteralPath $uninstallKey) 'Installed apps registration is missing.'
     Assert-True (Test-Path -LiteralPath $startMenu -PathType Container) 'Start Menu shortcuts are missing.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $startMenu 'DualSense Battery Tray.lnk') -PathType Leaf) 'Launch shortcut is missing.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $startMenu 'Uninstall DualSense Battery Tray.lnk') -PathType Leaf) 'Uninstall shortcut is missing.'
     Assert-True ($null -ne (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)) 'Watcher task is missing.'
 }
 
@@ -53,8 +56,40 @@ function Assert-Uninstalled {
     Assert-True ($null -eq (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)) 'Watcher task remains.'
 }
 
+function New-FailingUpgradeSetup {
+    $fixtureRoot = Join-Path $env:RUNNER_TEMP 'dualsense-failed-upgrade-fixture'
+    foreach ($directory in @(
+            $fixtureRoot,
+            (Join-Path $fixtureRoot 'scripts'),
+            (Join-Path $fixtureRoot 'src\DualSenseBatteryTray.App\Assets\App'))) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+    Copy-Item -LiteralPath $legacyScript -Destination (Join-Path $fixtureRoot 'scripts\install.ps1')
+    Copy-Item -LiteralPath $legacyUninstall -Destination (Join-Path $fixtureRoot 'scripts\uninstall.ps1')
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'src\DualSenseBatteryTray.App\Assets\App\dualsense-disconnected.ico') -Destination (Join-Path $fixtureRoot 'src\DualSenseBatteryTray.App\Assets\App\dualsense-disconnected.ico')
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSES') -Destination (Join-Path $fixtureRoot 'LICENSES') -Recurse
+    [System.IO.File]::WriteAllText((Join-Path $fixtureRoot 'scripts\device-watcher-task.xml'), '<not-a-task />')
+
+    $output = Join-Path $env:RUNNER_TEMP 'dualsense-failed-upgrade-Setup.exe'
+    $source = Join-Path $projectRoot 'installer\DualSenseBatteryTray.nsi'
+    $arguments = @(
+        '/V2',
+        "/DPROJECT_ROOT=$fixtureRoot",
+        "/DPUBLISH_DIR=$LegacyPublishDirectory",
+        '/DPRODUCT_VERSION=1.0.1',
+        "/DOUTPUT_FILE=$output",
+        $source
+    )
+    & $MakensisPath @arguments
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $output -PathType Leaf)) {
+        throw 'Could not compile failed-upgrade fixture.'
+    }
+    return $output
+}
+
 if (-not (Test-Path -LiteralPath $SetupPath -PathType Leaf)) { throw "Setup not found: '$SetupPath'." }
 if (-not (Test-Path -LiteralPath $LegacyPublishDirectory -PathType Container)) { throw "Legacy publish directory not found: '$LegacyPublishDirectory'." }
+if (-not (Test-Path -LiteralPath $MakensisPath -PathType Leaf)) { throw "NSIS compiler not found: '$MakensisPath'." }
 Assert-Uninstalled
 
 try {
@@ -65,6 +100,24 @@ try {
     Write-Host 'Setup-to-Setup upgrade'
     Invoke-Setup $SetupPath
     Assert-Installed
+
+    Write-Host 'Failed upgrade preserves installed version'
+    $badSetup = New-FailingUpgradeSetup
+    $oldAppHash = (Get-FileHash -LiteralPath (Join-Path $installRoot 'DualSenseBatteryTray.App.exe') -Algorithm SHA256).Hash
+    $oldWatcherHash = (Get-FileHash -LiteralPath (Join-Path $installRoot 'DualSenseBatteryTray.Watcher.exe') -Algorithm SHA256).Hash
+    $oldUninstallerHash = (Get-FileHash -LiteralPath (Join-Path $installRoot 'Uninstall.exe') -Algorithm SHA256).Hash
+    $oldTaskXml = Export-ScheduledTask -TaskName $taskName -TaskPath '\'
+    $oldRegistry = Get-ItemProperty -LiteralPath $uninstallKey
+    $oldLaunchShortcutHash = (Get-FileHash -LiteralPath (Join-Path $startMenu 'DualSense Battery Tray.lnk') -Algorithm SHA256).Hash
+    $badUpgrade = Start-Process -FilePath $badSetup -ArgumentList '/S' -PassThru -Wait -WindowStyle Hidden
+    Assert-True ($badUpgrade.ExitCode -ne 0) 'Upgrade with invalid task XML reported success.'
+    Assert-Installed
+    Assert-True ((Get-FileHash -LiteralPath (Join-Path $installRoot 'DualSenseBatteryTray.App.exe') -Algorithm SHA256).Hash -eq $oldAppHash) 'Failed upgrade replaced the App.'
+    Assert-True ((Get-FileHash -LiteralPath (Join-Path $installRoot 'DualSenseBatteryTray.Watcher.exe') -Algorithm SHA256).Hash -eq $oldWatcherHash) 'Failed upgrade replaced the Watcher.'
+    Assert-True ((Get-FileHash -LiteralPath (Join-Path $installRoot 'Uninstall.exe') -Algorithm SHA256).Hash -eq $oldUninstallerHash) 'Failed upgrade replaced the uninstaller.'
+    Assert-True ((Export-ScheduledTask -TaskName $taskName -TaskPath '\') -eq $oldTaskXml) 'Failed upgrade changed the Watcher task.'
+    Assert-True ((Get-ItemProperty -LiteralPath $uninstallKey).DisplayVersion -eq $oldRegistry.DisplayVersion) 'Failed upgrade changed Installed apps version.'
+    Assert-True ((Get-FileHash -LiteralPath (Join-Path $startMenu 'DualSense Battery Tray.lnk') -Algorithm SHA256).Hash -eq $oldLaunchShortcutHash) 'Failed upgrade changed Start Menu shortcut.'
     Invoke-Uninstaller
     Assert-Uninstalled
 
