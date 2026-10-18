@@ -42,7 +42,7 @@ public static class BatteryIconRenderer
         "M5.35 3.85 H10.65 L10.3 6.1 " +
         "C10.22 6.65 9.88 6.92 9.35 6.92 H6.65 " +
         "C6.12 6.92 5.78 6.65 5.7 6.1 Z";
-    private const string VaderShellPath =
+    private const string ApexShellPath =
         "M3.4 4 C2.65 4.1 2.25 4.75 1.85 5.75 " +
         "L0.95 9.15 C0.5 10.85 0.9 12.45 2.05 12.75 " +
         "C2.95 13 3.55 12.25 3.95 11.25 L4.6 9.7 " +
@@ -51,7 +51,7 @@ public static class BatteryIconRenderer
         "C12.45 12.25 13.05 13 13.95 12.75 " +
         "C15.1 12.45 15.5 10.85 15.05 9.15 L14.15 5.75 " +
         "C13.75 4.75 13.35 4.1 12.6 4 L10.8 3.65 H5.2 Z";
-    private const string VaderCenterPath =
+    private const string ApexScreenPath =
         "M6.25 4.35 H9.75 V6.45 H6.25 Z";
     private static readonly int[] NativeIconSizes = [16, 24, 32, 48];
     private static readonly DrawingColor Outline = DrawingColor.FromArgb(255, 20, 22, 27);
@@ -81,8 +81,8 @@ public static class BatteryIconRenderer
         CreateFrozenGeometry(RefinedDualSenseShouldersPath);
     private static readonly Geometry RefinedDualSenseTouchpad =
         CreateFrozenGeometry(RefinedDualSenseTouchpadPath);
-    private static readonly Geometry VaderShell = CreateFrozenGeometry(VaderShellPath);
-    private static readonly Geometry VaderCenter = CreateFrozenGeometry(VaderCenterPath);
+    private static readonly Geometry ApexShell = CreateFrozenGeometry(ApexShellPath);
+    private static readonly Geometry ApexScreen = CreateFrozenGeometry(ApexScreenPath);
     private static readonly Lazy<BitmapSource> ConnectedLightController = new(
         () => LoadFrozenResourceBitmap(
             "/DualSenseBatteryTray.App;component/Assets/Tray/dualsense-connected-light.png"));
@@ -217,14 +217,14 @@ public static class BatteryIconRenderer
         {
             ControllerIconKind.DualSense => RenderControllerGlyphCore(
                 size, body, body, CreateFrozenBrush(87, 151, 246), details),
-            ControllerIconKind.FlydigiVader => RenderVaderGlyphCore(
+            ControllerIconKind.FlydigiApex => RenderApexGlyphCore(
                 size, body, body, CreateFrozenBrush(143, 92, 246), details),
             ControllerIconKind.GenericGamepad => RenderGenericGlyphCore(size, body, details),
             _ => throw new ArgumentOutOfRangeException(nameof(iconKind), iconKind, null),
         };
     }
 
-    private static BitmapSource RenderVaderGlyphCore(
+    private static BitmapSource RenderApexGlyphCore(
         int size,
         MediaBrush body,
         MediaBrush outline,
@@ -239,17 +239,17 @@ public static class BatteryIconRenderer
             context.PushTransform(new TranslateTransform(1, 1));
             context.PushTransform(new ScaleTransform(scale, scale));
             var pen = new MediaPen(outline, 1d / scale);
-            context.DrawGeometry(body, pen, VaderShell);
-            context.DrawGeometry(center, new MediaPen(outline, 0.45d / scale), VaderCenter);
+            context.DrawGeometry(body, pen, ApexShell);
+            context.DrawGeometry(center, new MediaPen(outline, 0.45d / scale), ApexScreen);
             if (detail == ControllerGlyphDetail.Full)
-                DrawVaderDetails(context, details, scale);
+                DrawApexDetails(context, details, scale);
             context.Pop();
             context.Pop();
         }
         return RenderVisual(visual, size);
     }
 
-    private static void DrawVaderDetails(DrawingContext context, MediaBrush brush, double scale)
+    private static void DrawApexDetails(DrawingContext context, MediaBrush brush, double scale)
     {
         var pen = new MediaPen(brush, 0.85d / scale);
         context.DrawLine(pen, new System.Windows.Point(3.55, 6.4), new System.Windows.Point(3.55, 8.35));

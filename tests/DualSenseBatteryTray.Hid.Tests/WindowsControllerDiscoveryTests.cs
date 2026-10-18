@@ -5,17 +5,17 @@ namespace DualSenseBatteryTray.Hid.Tests;
 public sealed class WindowsControllerDiscoveryTests
 {
     [Fact]
-    public void A_single_XInput_slot_with_a_Flydigi_receiver_gets_the_Vader4_profile()
+    public void A_single_XInput_slot_with_a_Flydigi_receiver_gets_the_Apex4_profile()
     {
         var discovery = new WindowsControllerDiscovery(
             new SlotApi(2),
             new FlydigiDetector(true),
-            new ServiceClient(new FlydigiDeviceState("Vader 4 Pro", "f4", true, 4, 2)),
+            new ServiceClient(new FlydigiDeviceState("Controller (Flydigi APEX 4)", "k2", true, 4, 1)),
             new Presence(false));
 
         var controller = Assert.IsType<ActiveController>(discovery.FindActiveController());
 
-        Assert.Equal(ControllerProfile.FlydigiVader4Receiver, controller.Profile);
+        Assert.Equal(ControllerProfile.FlydigiApex4Receiver, controller.Profile);
         Assert.IsType<FlydigiBatteryReader>(controller.CreateBatteryReader());
     }
 
@@ -72,7 +72,7 @@ public sealed class WindowsControllerDiscoveryTests
 
     private sealed class FlydigiDetector(bool present) : IFlydigiDeviceDetector
     {
-        public bool IsVaderReceiverPresent() => present;
+        public bool IsFlydigiReceiverPresent() => present;
     }
 
     private sealed class ServiceClient(FlydigiDeviceState? device) : IFlydigiServiceClient

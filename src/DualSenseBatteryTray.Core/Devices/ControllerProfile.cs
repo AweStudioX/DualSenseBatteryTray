@@ -9,7 +9,7 @@ public enum ControllerProtocol
 public enum ControllerIconKind
 {
     DualSense,
-    FlydigiVader,
+    FlydigiApex,
     GenericGamepad,
 }
 
@@ -27,11 +27,11 @@ public sealed record ControllerProfile(
         ControllerIconKind.DualSense,
         HasPrecisePercentage: true);
 
-    public static ControllerProfile FlydigiVader4Receiver { get; } = new(
-        "Flydigi Vader 4 (八爪鱼 4)",
+    public static ControllerProfile FlydigiApex4Receiver { get; } = new(
+        "Flydigi APEX 4 (八爪鱼 4)",
         "2.4 GHz receiver · XInput",
         ControllerProtocol.XInput,
-        ControllerIconKind.FlydigiVader,
+        ControllerIconKind.FlydigiApex,
         HasPrecisePercentage: false);
 
     public static ControllerProfile FlydigiXInputCompatibility { get; } = new(

@@ -6,12 +6,12 @@ namespace DualSenseBatteryTray.Hid.Tests;
 public sealed class FlydigiProtocolTests
 {
     [Fact]
-    public void Service_response_parser_reads_Vader_identity_connection_and_battery_level()
+    public void Service_response_parser_reads_Apex_identity_connection_and_battery_level()
     {
         var device = Message(
-            TextField(1, "Flydigi Vader 4 Pro"),
-            VarintField(3, 2),
-            TextField(4, "f4"),
+            TextField(1, "Controller (Flydigi APEX 4)"),
+            VarintField(3, 1),
+            TextField(4, "k2"),
             VarintField(8, 1),
             VarintField(9, 4));
         var container = BytesField(1, device);
@@ -21,11 +21,11 @@ public sealed class FlydigiProtocolTests
         var controller = Assert.Single(parsed.Devices);
 
         Assert.Equal(4097, parsed.Command);
-        Assert.Equal("Flydigi Vader 4 Pro", controller.Name);
-        Assert.Equal("f4", controller.DeviceCode);
+        Assert.Equal("Controller (Flydigi APEX 4)", controller.Name);
+        Assert.Equal("k2", controller.DeviceCode);
         Assert.True(controller.Connected);
         Assert.Equal(4, controller.BatteryLevel);
-        Assert.Equal(2, controller.ConnectionType);
+        Assert.Equal(1, controller.ConnectionType);
     }
 
     [Theory]
@@ -41,7 +41,7 @@ public sealed class FlydigiProtocolTests
         ConnectionState state)
     {
         var result = FlydigiBatteryReader.Normalize(
-            new FlydigiDeviceState("Vader", "f4", true, level, 2));
+            new FlydigiDeviceState("APEX 4", "k2", true, level, 1));
 
         Assert.Equal(percentage, result.Percentage);
         Assert.Equal(state, result.State);
@@ -51,7 +51,7 @@ public sealed class FlydigiProtocolTests
     public void Charging_does_not_invent_a_percentage()
     {
         var result = FlydigiBatteryReader.Normalize(
-            new FlydigiDeviceState("Vader", "f4", true, 6, 1));
+            new FlydigiDeviceState("APEX 4", "k2", true, 6, 1));
 
         Assert.Null(result.Percentage);
         Assert.Equal(ConnectionState.Charging, result.State);

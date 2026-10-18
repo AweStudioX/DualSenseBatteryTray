@@ -5,14 +5,14 @@ namespace DualSenseBatteryTray.Core.Tests;
 public sealed class ControllerProfileTests
 {
     [Fact]
-    public void Vader4_uses_XInput_with_a_dedicated_icon_and_coarse_battery_levels()
+    public void Apex4_uses_XInput_with_a_dedicated_icon_and_coarse_battery_levels()
     {
-        var profile = ControllerProfile.FlydigiVader4Receiver;
+        var profile = ControllerProfile.FlydigiApex4Receiver;
 
         Assert.Equal(ControllerProtocol.XInput, profile.Protocol);
-        Assert.Equal(ControllerIconKind.FlydigiVader, profile.IconKind);
+        Assert.Equal(ControllerIconKind.FlydigiApex, profile.IconKind);
         Assert.False(profile.HasPrecisePercentage);
-        Assert.Contains("Vader 4", profile.DisplayName);
+        Assert.Contains("APEX 4", profile.DisplayName);
     }
 
     [Fact]
