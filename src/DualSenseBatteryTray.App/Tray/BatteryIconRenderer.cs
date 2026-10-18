@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using DualSenseBatteryTray.Core.Battery;
+using DualSenseBatteryTray.Core.Devices;
 using DrawingColor = System.Drawing.Color;
 using DrawingIcon = System.Drawing.Icon;
 using MediaBrush = System.Windows.Media.Brush;
@@ -41,6 +42,17 @@ public static class BatteryIconRenderer
         "M5.35 3.85 H10.65 L10.3 6.1 " +
         "C10.22 6.65 9.88 6.92 9.35 6.92 H6.65 " +
         "C6.12 6.92 5.78 6.65 5.7 6.1 Z";
+    private const string VaderShellPath =
+        "M3.4 4 C2.65 4.1 2.25 4.75 1.85 5.75 " +
+        "L0.95 9.15 C0.5 10.85 0.9 12.45 2.05 12.75 " +
+        "C2.95 13 3.55 12.25 3.95 11.25 L4.6 9.7 " +
+        "C4.82 9.15 5.2 8.95 5.8 8.95 H10.2 " +
+        "C10.8 8.95 11.18 9.15 11.4 9.7 L12.05 11.25 " +
+        "C12.45 12.25 13.05 13 13.95 12.75 " +
+        "C15.1 12.45 15.5 10.85 15.05 9.15 L14.15 5.75 " +
+        "C13.75 4.75 13.35 4.1 12.6 4 L10.8 3.65 H5.2 Z";
+    private const string VaderCenterPath =
+        "M6.25 4.35 H9.75 V6.45 H6.25 Z";
     private static readonly int[] NativeIconSizes = [16, 24, 32, 48];
     private static readonly DrawingColor Outline = DrawingColor.FromArgb(255, 20, 22, 27);
     private static readonly DrawingColor White = DrawingColor.FromArgb(255, 255, 255, 255);
@@ -69,6 +81,8 @@ public static class BatteryIconRenderer
         CreateFrozenGeometry(RefinedDualSenseShouldersPath);
     private static readonly Geometry RefinedDualSenseTouchpad =
         CreateFrozenGeometry(RefinedDualSenseTouchpadPath);
+    private static readonly Geometry VaderShell = CreateFrozenGeometry(VaderShellPath);
+    private static readonly Geometry VaderCenter = CreateFrozenGeometry(VaderCenterPath);
     private static readonly Lazy<BitmapSource> ConnectedLightController = new(
         () => LoadFrozenResourceBitmap(
             "/DualSenseBatteryTray.App;component/Assets/Tray/dualsense-connected-light.png"));
@@ -188,7 +202,10 @@ public static class BatteryIconRenderer
             new SolidColorBrush(OutlineMedia),
             new SolidColorBrush(OutlineMedia));
 
-    internal static BitmapSource RenderConnectedControllerGlyph(TrayTheme theme, int size)
+    internal static BitmapSource RenderConnectedControllerGlyph(
+        TrayTheme theme,
+        int size,
+        ControllerIconKind iconKind = ControllerIconKind.DualSense)
     {
         var (body, details) = theme switch
         {
@@ -196,12 +213,68 @@ public static class BatteryIconRenderer
             TrayTheme.LightTaskbar => (new SolidColorBrush(OutlineMedia), MediaBrushes.White),
             _ => throw new ArgumentOutOfRangeException(nameof(theme), theme, null),
         };
-        return RenderControllerGlyphCore(
-            size,
-            body,
-            body,
-            CreateFrozenBrush(87, 151, 246),
-            details);
+        return iconKind switch
+        {
+            ControllerIconKind.DualSense => RenderControllerGlyphCore(
+                size, body, body, CreateFrozenBrush(87, 151, 246), details),
+            ControllerIconKind.FlydigiVader => RenderVaderGlyphCore(
+                size, body, body, CreateFrozenBrush(143, 92, 246), details),
+            ControllerIconKind.GenericGamepad => RenderGenericGlyphCore(size, body, details),
+            _ => throw new ArgumentOutOfRangeException(nameof(iconKind), iconKind, null),
+        };
+    }
+
+    private static BitmapSource RenderVaderGlyphCore(
+        int size,
+        MediaBrush body,
+        MediaBrush outline,
+        MediaBrush center,
+        MediaBrush details)
+    {
+        var detail = SelectControllerGlyphDetail(size);
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            var scale = (size - 2d) / 16d;
+            context.PushTransform(new TranslateTransform(1, 1));
+            context.PushTransform(new ScaleTransform(scale, scale));
+            var pen = new MediaPen(outline, 1d / scale);
+            context.DrawGeometry(body, pen, VaderShell);
+            context.DrawGeometry(center, new MediaPen(outline, 0.45d / scale), VaderCenter);
+            if (detail == ControllerGlyphDetail.Full)
+                DrawVaderDetails(context, details, scale);
+            context.Pop();
+            context.Pop();
+        }
+        return RenderVisual(visual, size);
+    }
+
+    private static void DrawVaderDetails(DrawingContext context, MediaBrush brush, double scale)
+    {
+        var pen = new MediaPen(brush, 0.85d / scale);
+        context.DrawLine(pen, new System.Windows.Point(3.55, 6.4), new System.Windows.Point(3.55, 8.35));
+        context.DrawLine(pen, new System.Windows.Point(2.58, 7.38), new System.Windows.Point(4.52, 7.38));
+        context.DrawEllipse(null, pen, new System.Windows.Point(5.25, 9.35), 0.62, 0.62);
+        context.DrawEllipse(null, pen, new System.Windows.Point(9.25, 8.55), 0.62, 0.62);
+        context.DrawEllipse(brush, null, new System.Windows.Point(11.7, 6.15), 0.3, 0.3);
+        context.DrawEllipse(brush, null, new System.Windows.Point(12.65, 7.1), 0.3, 0.3);
+        context.DrawEllipse(brush, null, new System.Windows.Point(11.7, 8.05), 0.3, 0.3);
+        context.DrawEllipse(brush, null, new System.Windows.Point(10.75, 7.1), 0.3, 0.3);
+    }
+
+    private static BitmapSource RenderGenericGlyphCore(int size, MediaBrush body, MediaBrush details)
+    {
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            var scale = size / 16d;
+            context.PushTransform(new ScaleTransform(scale, scale));
+            context.DrawGeometry(body, null, FluentGamesGeometry);
+            if (size > 16)
+                context.DrawGeometry(null, new MediaPen(details, 0.45), FluentGamesRegularOuterShell);
+            context.Pop();
+        }
+        return RenderVisual(visual, size);
     }
 
     private static BitmapSource RenderControllerGlyphCore(
@@ -252,16 +325,26 @@ public static class BatteryIconRenderer
         context.DrawEllipse(null, pen, new System.Windows.Point(9.55, 9.65), 0.55, 0.55);
     }
 
-    internal static BitmapSource RenderCompact(BatteryState state, TrayTheme theme, int size)
+    internal static BitmapSource RenderCompact(
+        BatteryState state,
+        TrayTheme theme,
+        int size,
+        ControllerIconKind iconKind = ControllerIconKind.DualSense)
     {
         ValidateStateAndSize(state, size);
-        var controller = SelectConnectedController(theme);
+        var controller = iconKind == ControllerIconKind.DualSense
+            ? SelectConnectedController(theme)
+            : RenderConnectedControllerGlyph(theme, size, iconKind);
         var numberLayer = RenderCompactNumberLayer(state, size);
         var visual = new DrawingVisual();
         RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
         using (var context = visual.RenderOpen())
         {
-            context.DrawImage(controller, GetConnectedControllerBounds(size));
+            context.DrawImage(
+                controller,
+                iconKind == ControllerIconKind.DualSense
+                    ? GetConnectedControllerBounds(size)
+                    : new System.Windows.Rect(0, 0, size, size));
             context.DrawImage(numberLayer, new System.Windows.Rect(0, 0, size, size));
         }
 
@@ -526,12 +609,24 @@ public static class BatteryIconRenderer
         RenderTrayIcon(state, RenderController);
 
     internal static DrawingIcon RenderControllerTrayIcon(BatteryState state, TrayTheme theme) =>
+        RenderControllerTrayIcon(state, theme, ControllerIconKind.DualSense);
+
+    internal static DrawingIcon RenderControllerTrayIcon(
+        BatteryState state,
+        TrayTheme theme,
+        ControllerIconKind iconKind) =>
         RenderTrayIcon(
             state,
-            (frameState, size) => RenderConnectedController(frameState, theme, size));
+            (frameState, size) => RenderConnectedController(frameState, theme, size, iconKind));
 
     internal static DrawingIcon RenderCompactTrayIcon(BatteryState state, TrayTheme theme) =>
-        RenderTrayIcon(state, (frameState, size) => RenderCompact(frameState, theme, size));
+        RenderCompactTrayIcon(state, theme, ControllerIconKind.DualSense);
+
+    internal static DrawingIcon RenderCompactTrayIcon(
+        BatteryState state,
+        TrayTheme theme,
+        ControllerIconKind iconKind) =>
+        RenderTrayIcon(state, (frameState, size) => RenderCompact(frameState, theme, size, iconKind));
 
     internal static DrawingIcon RenderPercentageTrayIcon(BatteryState state, TrayTheme theme) =>
         RenderTrayIcon(state, (frameState, size) => RenderPercentage(frameState, theme, size));
@@ -671,10 +766,11 @@ public static class BatteryIconRenderer
     private static BitmapSource RenderConnectedController(
         BatteryState state,
         TrayTheme theme,
-        int size)
+        int size,
+        ControllerIconKind iconKind = ControllerIconKind.DualSense)
     {
         ValidateStateAndSize(state, size);
-        return RenderConnectedControllerGlyph(theme, size);
+        return RenderConnectedControllerGlyph(theme, size, iconKind);
     }
 
     private static System.Windows.Rect GetConnectedControllerBounds(int size) =>

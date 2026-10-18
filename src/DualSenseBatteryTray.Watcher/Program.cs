@@ -24,7 +24,7 @@ internal static class Program
             var appMutexName = WatcherRuntime.GetAppMutexName(userSid);
             var appStartInfo = WatcherRuntime.CreateAppStartInfo(AppContext.BaseDirectory);
             coordinator = new WatcherLivenessCoordinator(
-                new ControllerLivenessProbe(),
+                new SupportedControllerLivenessProbe(),
                 () => WatcherRuntime.IsMutexPresent(appMutexName),
                 () => Process.Start(appStartInfo)?.Dispose());
             using var notificationWindow = new DeviceNotificationWindow(coordinator.RequestCheck);

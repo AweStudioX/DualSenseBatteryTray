@@ -3,6 +3,7 @@ using System.Windows;
 using DualSenseBatteryTray.App.Notifications;
 using DualSenseBatteryTray.App.Startup;
 using DualSenseBatteryTray.Core.Battery;
+using DualSenseBatteryTray.Core.Devices;
 using Forms = System.Windows.Forms;
 
 namespace DualSenseBatteryTray.App.Tray;
@@ -16,6 +17,7 @@ internal sealed class TrayApplicationContext : IDisposable
     private readonly ITrayThemeProvider _trayThemeProvider;
     private readonly ITrayLayoutPreferenceStore _layoutPreferenceStore;
     private readonly Action<Forms.NotifyIcon, Icon?> _assignIcon;
+    private readonly ControllerProfile _profile;
     private readonly Forms.ContextMenuStrip _menu = new();
     private readonly Forms.ToolStripMenuItem _listenerMenuItem;
     private readonly Forms.ToolStripMenuItem _compactLayoutMenuItem;
@@ -37,7 +39,8 @@ internal sealed class TrayApplicationContext : IDisposable
         IWatcherTaskService watcherTaskService,
         ITrayThemeProvider trayThemeProvider,
         ITrayLayoutPreferenceStore layoutPreferenceStore,
-        Action<Forms.NotifyIcon, Icon?>? assignIcon = null)
+        Action<Forms.NotifyIcon, Icon?>? assignIcon = null,
+        ControllerProfile? profile = null)
     {
         _mainWindow = mainWindow;
         _refreshRequested = refreshRequested;
@@ -46,6 +49,7 @@ internal sealed class TrayApplicationContext : IDisposable
         _trayThemeProvider = trayThemeProvider;
         _layoutPreferenceStore = layoutPreferenceStore;
         _assignIcon = assignIcon ?? AssignIcon;
+        _profile = profile ?? ControllerProfile.DualSenseUsb;
 
         var refreshItem = new Forms.ToolStripMenuItem("Refresh");
         refreshItem.Click += (_, _) => _refreshRequested();
@@ -116,9 +120,14 @@ internal sealed class TrayApplicationContext : IDisposable
 
     public void NotifyLowBattery(int threshold) => _notifier!.Notify(threshold);
 
-    internal static string FormatToolTip(BatteryState state)
+    internal static string FormatToolTip(BatteryState state) =>
+        FormatToolTip(state, ControllerProfile.DualSenseUsb);
+
+    internal static string FormatToolTip(BatteryState state, ControllerProfile profile)
     {
-        var percentage = state.Percentage is int level ? $"{level}%" : "?";
+        var percentage = state.Percentage is int level
+            ? profile.HasPrecisePercentage ? $"{level}%" : $"≈{level}%"
+            : "?";
         var chargeState = state.State switch
         {
             ConnectionState.Discharging => "Discharging",
@@ -127,7 +136,7 @@ internal sealed class TrayApplicationContext : IDisposable
             ConnectionState.Flat => "Flat",
             _ => "Unknown",
         };
-        return $"DualSense USB · {percentage} · {chargeState}";
+        return $"{profile.DisplayName} · {percentage} · {chargeState}";
     }
 
     public void Dispose()
@@ -179,7 +188,7 @@ internal sealed class TrayApplicationContext : IDisposable
 
     private void Reconcile(BatteryState state, TrayTheme theme, TrayLayoutMode layout)
     {
-        var nextIcons = RenderIconSet(state, theme, layout);
+        var nextIcons = RenderIconSet(state, theme, layout, _profile.IconKind);
         var desiredCount = nextIcons.Count;
         var nextNotifyIcons = new List<Forms.NotifyIcon>(desiredCount);
         var newlyCreatedNotifyIcons = new List<Forms.NotifyIcon>();
@@ -202,7 +211,7 @@ internal sealed class TrayApplicationContext : IDisposable
                 previousVisibility[index] = notifyIcon.Visible;
             }
 
-            var tooltip = FormatToolTip(state);
+            var tooltip = FormatToolTip(state, _profile);
             for (var index = 0; index < desiredCount; index++)
             {
                 _assignIcon(nextNotifyIcons[index], nextIcons[index]);
@@ -253,7 +262,8 @@ internal sealed class TrayApplicationContext : IDisposable
     private static List<Icon> RenderIconSet(
         BatteryState state,
         TrayTheme theme,
-        TrayLayoutMode layout)
+        TrayLayoutMode layout,
+        ControllerIconKind iconKind)
     {
         var icons = new List<Icon>(layout == TrayLayoutMode.Compact ? 1 : 2);
         try
@@ -261,10 +271,10 @@ internal sealed class TrayApplicationContext : IDisposable
             switch (layout)
             {
                 case TrayLayoutMode.Compact:
-                    icons.Add(BatteryIconRenderer.RenderCompactTrayIcon(state, theme));
+                    icons.Add(BatteryIconRenderer.RenderCompactTrayIcon(state, theme, iconKind));
                     break;
                 case TrayLayoutMode.TwoIcons:
-                    icons.Add(BatteryIconRenderer.RenderControllerTrayIcon(state, theme));
+                    icons.Add(BatteryIconRenderer.RenderControllerTrayIcon(state, theme, iconKind));
                     icons.Add(BatteryIconRenderer.RenderPercentageTrayIcon(state, theme));
                     break;
                 default:
@@ -286,7 +296,7 @@ internal sealed class TrayApplicationContext : IDisposable
         var notifyIcon = new Forms.NotifyIcon
         {
             ContextMenuStrip = _menu,
-            Text = "DualSense USB · ? · Unknown",
+            Text = $"{_profile.DisplayName} · ? · Unknown",
             Visible = false,
         };
         notifyIcon.MouseClick += ShowWindowOnLeftClick;
@@ -459,7 +469,7 @@ internal sealed class TrayApplicationContext : IDisposable
         Enum.IsDefined(layout) ? layout : TrayLayoutMode.Compact;
 
     private static void ShowAbout() => System.Windows.MessageBox.Show(
-        "DualSense Battery Tray\nUSB read-only battery monitor",
+        "Controller Battery Tray\nRead-only battery monitor for DualSense and XInput controllers",
         "About",
         MessageBoxButton.OK,
         MessageBoxImage.Information);

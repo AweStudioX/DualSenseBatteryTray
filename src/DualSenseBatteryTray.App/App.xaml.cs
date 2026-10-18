@@ -4,6 +4,7 @@ using DualSenseBatteryTray.App.Startup;
 using DualSenseBatteryTray.App.Tray;
 using DualSenseBatteryTray.Core.Battery;
 using DualSenseBatteryTray.Core.Notifications;
+using DualSenseBatteryTray.Core.Devices;
 using DualSenseBatteryTray.Hid;
 
 namespace DualSenseBatteryTray.App;
@@ -32,7 +33,16 @@ public partial class App : System.Windows.Application
 
         _logger = new BoundedFileLogger();
         _logger.Log("app.start", null);
-        _mainWindow = new MainWindow();
+        var controller = new WindowsControllerDiscovery().FindActiveController();
+        if (controller is null)
+        {
+            _logger.Log("controller.not_found", null);
+            Shutdown(0);
+            return;
+        }
+
+        _logger.Log($"controller.selected.{controller.Profile.Protocol}", null);
+        _mainWindow = new MainWindow(controller.Profile);
         MainWindow = _mainWindow;
         _trayContext = new TrayApplicationContext(
             _mainWindow,
@@ -40,9 +50,10 @@ public partial class App : System.Windows.Application
             () => _ = ShutdownApplicationAsync(),
             new WatcherTaskService(),
             new WindowsTrayThemeProvider(),
-            new TrayLayoutPreferenceStore());
+            new TrayLayoutPreferenceStore(),
+            profile: controller.Profile);
         _readerSession = new BatteryReaderSession(
-            () => new DualSenseHidReader(),
+            controller.CreateBatteryReader,
             OnBatteryState,
             OnReaderEnded);
 

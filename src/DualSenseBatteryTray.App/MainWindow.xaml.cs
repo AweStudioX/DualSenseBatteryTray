@@ -5,6 +5,7 @@ using System.Windows.Interop;
 using DualSenseBatteryTray.App.Shell;
 using DualSenseBatteryTray.App.Tray;
 using DualSenseBatteryTray.Core.Battery;
+using DualSenseBatteryTray.Core.Devices;
 
 namespace DualSenseBatteryTray.App;
 
@@ -15,11 +16,12 @@ public partial class MainWindow : Window
 
     private readonly WindowSmallIconController _smallIcon = new(
         BatteryIconRenderer.RenderWindowSmallIcon);
-    private readonly MainWindowViewModel _viewModel = new();
+    private readonly MainWindowViewModel _viewModel;
     private bool _isShuttingDown;
 
-    public MainWindow()
+    public MainWindow(ControllerProfile? profile = null)
     {
+        _viewModel = new MainWindowViewModel(profile ?? ControllerProfile.DualSenseUsb);
         InitializeComponent();
         DataContext = _viewModel;
         Icon = ApplicationIcon;
@@ -66,11 +68,22 @@ public partial class MainWindow : Window
 
 internal sealed class MainWindowViewModel : INotifyPropertyChanged
 {
+    private readonly ControllerProfile _profile;
     private string _percentage = "?";
     private string _chargeState = "Unknown";
 
-    public string DeviceName => "DualSense Wireless Controller";
-    public string ConnectionType => "USB";
+    public MainWindowViewModel()
+        : this(ControllerProfile.DualSenseUsb)
+    {
+    }
+
+    public MainWindowViewModel(ControllerProfile profile)
+    {
+        _profile = profile ?? throw new ArgumentNullException(nameof(profile));
+    }
+
+    public string DeviceName => _profile.DisplayName;
+    public string ConnectionType => _profile.ConnectionType;
 
     public string Percentage
     {
@@ -88,7 +101,9 @@ internal sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public void Update(BatteryState state)
     {
-        Percentage = state.Percentage is int level ? $"{level}%" : "?";
+        Percentage = state.Percentage is int level
+            ? _profile.HasPrecisePercentage ? $"{level}%" : $"≈ {level}%"
+            : "?";
         ChargeState = state.State switch
         {
             ConnectionState.Discharging => "Discharging",

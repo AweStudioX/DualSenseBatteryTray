@@ -1,4 +1,4 @@
-# DualSense Battery Tray
+# Controller Battery Tray
 
 ## Install
 
@@ -16,16 +16,20 @@ This PowerShell route installs the same App, Watcher, and logon task for the cur
 
 ## Behavior
 
-- A supported USB DualSense uses the readable `Two icons` layout by default at 96 DPI: a connected controller icon followed by a separate battery value that includes `%`.
+- Supported controllers currently include USB DualSense and XInput-compatible controllers. Flydigi Vader receivers are recognized separately when Windows exposes their `FLYDIGI_VADER` device identity; other XInput devices use a generic gamepad profile and icon.
+- A supported controller uses the readable `Two icons` layout by default at 96 DPI: a controller-specific icon followed by a separate battery value that includes `%`.
+- DualSense reports a fine-grained percentage. When XInput exposes a known wireless battery type, the application displays its four coarse buckets as `≈ 0%`, `≈ 25%`, `≈ 50%`, or `≈ 100%`. Some third-party receivers—including current Flydigi compatibility firmware—report themselves as wired; their battery remains `?` instead of showing a misleading 100%.
+- Flydigi Vader devices can expose their real 0–5 battery level and charging state through the official Space Station background service. When its local `fcs.sock` pipe is available, the app queries that local service without opening or taking over controller input. The Space Station window does not need to remain open. Without the service, the receiver is still detected, but its misleading `VADER3` compatibility identity is not treated as an exact model match: the app uses the generic gamepad icon and shows battery as `?`.
 - `Compact` remains an optional persisted layout with one controller-and-number icon; it omits `%` inside the icon while hover text and the status window retain the complete percentage.
 - Connected tray artwork automatically adapts its outline and number contrast when the Windows system theme changes. Charging never replaces the measured percentage with a fabricated value.
 - `Tray layout` in the right-click menu switches live between `Two icons` and `Compact`; the successful choice is remembered across reconnects without restarting the HID session.
 - The executable and status window use a separate static, unconnected controller identity with an unlit touchpad and no blue connection indicator.
 - Clicking any active tray icon opens the status window; right-clicking opens Refresh, listener, tray-layout, About, and Exit commands.
-- VID/PID presence alone is not treated as a connected controller. The hidden watcher launches the tray application only after the DualSense sequence byte or sensor timestamp advances; an always-present adapter that returns frozen reports keeps every tray/window UI hidden.
+- VID/PID presence alone is not treated as a connected DualSense. The hidden watcher launches for advancing DualSense reports or an active XInput slot; an idle DualSense adapter that returns frozen reports keeps every tray/window UI hidden.
 - When advancing reports stop, the tray application closes and removes its icon or icons after the liveness timeout; the hidden watcher remains available and restores the application automatically when advancing reports resume without requiring a USB reconnect.
-- HID access is shared and read-only: the application reads input reports and never sends output or feature reports.
+- DualSense HID access is shared and read-only. XInput support calls only the battery-status API. The application never sends controller output, feature reports, vibration, lighting, or input commands.
 - Controller artwork is adapted from Microsoft Fluent UI System Icons under MIT; see `LICENSES/fluentui-system-icons-MIT.txt`.
+- Flydigi local-service protocol framing is adapted from JKWTCN/BatteryMonitor under MIT; see `LICENSES/batterymonitor-MIT.txt`.
 
 ## Releases
 
