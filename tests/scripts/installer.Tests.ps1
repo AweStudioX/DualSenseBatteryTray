@@ -4,6 +4,30 @@ BeforeAll {
     $makensisPath = Join-Path $env:TEMP 'dualsense-nsis-3.12\nsis-3.12\makensis.exe'
 }
 
+Describe 'Self-contained executable packaging' {
+    It 'embeds native runtime libraries in both single-file executables' {
+        foreach ($relativePath in @(
+            'src\DualSenseBatteryTray.App\DualSenseBatteryTray.App.csproj',
+            'src\DualSenseBatteryTray.Watcher\DualSenseBatteryTray.Watcher.csproj')) {
+            [xml] $project = Get-Content -LiteralPath (Join-Path $projectRoot $relativePath)
+            $properties = @($project.Project.PropertyGroup)
+
+            ($properties.PublishSingleFile | Where-Object { $_ -eq 'true' }) |
+                Should -Not -BeNullOrEmpty
+            ($properties.IncludeNativeLibrariesForSelfExtract | Where-Object { $_ -eq 'true' }) |
+                Should -Not -BeNullOrEmpty
+        }
+    }
+
+    It 'keeps native-library embedding explicit in release CI' {
+        $workflow = Get-Content -LiteralPath (Join-Path $projectRoot '.github\workflows\release.yml') -Raw
+
+        ([regex]::Matches(
+            $workflow,
+            '-p:IncludeNativeLibrariesForSelfExtract=true').Count) | Should -Be 2
+    }
+}
+
 Describe 'Windows Setup build' {
     It 'rejects an invalid version before invoking the compiler' {
         {
