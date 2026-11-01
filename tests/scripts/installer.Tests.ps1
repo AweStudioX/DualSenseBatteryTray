@@ -29,6 +29,17 @@ Describe 'Self-contained executable packaging' {
 }
 
 Describe 'Windows Setup build' {
+    It 'runs lifecycle scripts in 64-bit Windows PowerShell' {
+        $source = Get-Content -LiteralPath (
+            Join-Path $projectRoot 'installer\DualSenseBatteryTray.nsi') -Raw
+
+        ([regex]::Matches(
+            $source,
+            '\$WINDIR\\Sysnative\\WindowsPowerShell\\v1\.0\\powershell\.exe').Count) |
+            Should -Be 2
+        $source | Should -Not -Match '\$SYSDIR\\WindowsPowerShell'
+    }
+
     It 'rejects an invalid version before invoking the compiler' {
         {
             & $buildScript `

@@ -60,7 +60,7 @@ Section "Install"
   IfErrors install_failed
 
   ClearErrors
-  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\install.ps1" -PublishDirectory "$PLUGINSDIR\payload"' $0
+  ExecWait '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\install.ps1" -PublishDirectory "$PLUGINSDIR\payload"' $0
   IfErrors install_failed
   ${If} $0 != 0
     Goto install_failed
@@ -117,7 +117,7 @@ Section "Uninstall"
   CopyFiles /SILENT "$INSTDIR\uninstall.ps1" "$PLUGINSDIR\uninstall.ps1"
   IfErrors uninstall_failed
   ClearErrors
-  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\uninstall.ps1"' $0
+  ExecWait '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\uninstall.ps1"' $0
   IfErrors uninstall_failed
   ${If} $0 != 0
     Goto uninstall_failed
