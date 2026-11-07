@@ -125,10 +125,9 @@ unsafe extern "system" {
     fn WaitForSingleObject(handle: Handle, timeout: u32) -> u32;
     fn CancelIoEx(handle: Handle, overlapped: *mut Overlapped) -> i32;
     fn GetLastError() -> u32;
-}
-#[link(name = "xinput1_4")]
-unsafe extern "system" {
-    fn XInputGetBatteryInformation(index: u32, kind: u8, battery: *mut [u8; 2]) -> u32;
+    fn LoadLibraryExW(path: *const u16, file: Handle, flags: u32) -> Handle;
+    fn GetProcAddress(module: Handle, name: *const u8) -> *mut c_void;
+    fn FreeLibrary(module: Handle) -> i32;
 }
 #[link(name = "advapi32")]
 unsafe extern "system" {
@@ -172,15 +171,17 @@ pub struct Detection {
 pub fn probe() -> Vec<Detection> {
     let mut found = probe_dualsense();
     let mut xinput = Vec::new();
-    for index in 0..4 {
-        let mut raw = [0u8; 2];
-        if unsafe { XInputGetBatteryInformation(index, 0, &mut raw) } == 0
-            && let Some(battery) = parse_xinput_battery(raw[0], raw[1])
-        {
-            xinput.push(Detection {
-                source: format!("XInput {index}"),
-                battery,
-            });
+    if let Some(xinput_api) = XInputApi::load() {
+        for index in 0..4 {
+            let mut raw = [0u8; 2];
+            if unsafe { (xinput_api.get_battery)(index, 0, &mut raw) } == 0
+                && let Some(battery) = parse_xinput_battery(raw[0], raw[1])
+            {
+                xinput.push(Detection {
+                    source: format!("XInput {index}"),
+                    battery,
+                });
+            }
         }
     }
     if xinput.len() == 1 {
@@ -210,6 +211,43 @@ pub fn probe() -> Vec<Detection> {
     }
     found.extend(xinput);
     found
+}
+
+type GetXInputBattery = unsafe extern "system" fn(u32, u8, *mut [u8; 2]) -> u32;
+
+struct XInputApi {
+    module: Handle,
+    get_battery: GetXInputBattery,
+}
+
+impl XInputApi {
+    fn load() -> Option<Self> {
+        let name: Vec<u16> = std::ffi::OsStr::new("xinput1_4.dll")
+            .encode_wide()
+            .chain(Some(0))
+            .collect();
+        // LOAD_LIBRARY_SEARCH_SYSTEM32 avoids loading an application-local DLL.
+        let module = unsafe { LoadLibraryExW(name.as_ptr(), ptr::null_mut(), 0x800) };
+        if module.is_null() {
+            return None;
+        }
+        let proc =
+            unsafe { GetProcAddress(module, c"XInputGetBatteryInformation".as_ptr().cast()) };
+        if proc.is_null() {
+            unsafe { FreeLibrary(module) };
+            return None;
+        }
+        Some(Self {
+            module,
+            get_battery: unsafe { std::mem::transmute::<*mut c_void, GetXInputBattery>(proc) },
+        })
+    }
+}
+
+impl Drop for XInputApi {
+    fn drop(&mut self) {
+        unsafe { FreeLibrary(self.module) };
+    }
 }
 
 fn flydigi_apex_receiver_present() -> bool {
