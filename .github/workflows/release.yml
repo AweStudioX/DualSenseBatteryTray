@@ -9,7 +9,7 @@ on:
       version:
         description: "Version to validate without publishing"
         required: true
-        default: "1.0.1"
+        default: "1.0.2"
         type: string
 
 permissions:
@@ -73,8 +73,7 @@ jobs:
             --runtime win-x64 `
             --self-contained true `
             --no-restore `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:PublishSingleFile=false `
             -p:DebugType=None `
             -p:DebugSymbols=false `
             -p:Version=${{ steps.version.outputs.version }} `
@@ -88,8 +87,7 @@ jobs:
             --runtime win-x64 `
             --self-contained true `
             --no-restore `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:PublishSingleFile=false `
             -p:DebugType=None `
             -p:DebugSymbols=false `
             -p:Version=${{ steps.version.outputs.version }} `
@@ -136,8 +134,10 @@ jobs:
         run: |
           $published = Join-Path $env:RUNNER_TEMP 'installer-publish'
           New-Item -ItemType Directory -Path $published -Force | Out-Null
-          Copy-Item "$env:RUNNER_TEMP\app-publish\DualSenseBatteryTray.App.exe" $published
-          Copy-Item "$env:RUNNER_TEMP\watcher-publish\DualSenseBatteryTray.Watcher.exe" $published
+          & scripts/merge-publish.ps1 `
+            -AppDirectory "$env:RUNNER_TEMP\app-publish" `
+            -WatcherDirectory "$env:RUNNER_TEMP\watcher-publish" `
+            -OutputDirectory $published
           $name = "DualSenseBatteryTray-${{ steps.version.outputs.tag }}-win-x64-Setup.exe"
           $setup = Join-Path $env:GITHUB_WORKSPACE $name
           & scripts/build-installer.ps1 `
@@ -165,8 +165,7 @@ jobs:
           $payload = Join-Path $packageRoot 'publish'
           New-Item -ItemType Directory -Path $payload -Force | Out-Null
 
-          Copy-Item "$env:RUNNER_TEMP\app-publish\DualSenseBatteryTray.App.exe" $payload
-          Copy-Item "$env:RUNNER_TEMP\watcher-publish\DualSenseBatteryTray.Watcher.exe" $payload
+          Copy-Item '${{ steps.setup.outputs.publish }}\*' $payload -Recurse
           Copy-Item scripts\install.ps1, scripts\uninstall.ps1, scripts\device-watcher-task.xml $packageRoot
           Copy-Item README.md $packageRoot
           Copy-Item LICENSES $packageRoot -Recurse

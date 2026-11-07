@@ -1,6 +1,6 @@
 Unicode true
 RequestExecutionLevel user
-SetCompressor zlib
+SetCompressor /SOLID lzma
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
@@ -52,8 +52,7 @@ Section "Install"
   File /oname=device-watcher-task.xml "${PROJECT_ROOT}\scripts\device-watcher-task.xml"
 
   SetOutPath "$PLUGINSDIR\payload"
-  File "${PUBLISH_DIR}\DualSenseBatteryTray.App.exe"
-  File "${PUBLISH_DIR}\DualSenseBatteryTray.Watcher.exe"
+  File /r "${PUBLISH_DIR}\*.*"
   File "${PROJECT_ROOT}\scripts\uninstall.ps1"
   File /r "${PROJECT_ROOT}\LICENSES"
   WriteUninstaller "$PLUGINSDIR\payload\Uninstall.exe"
