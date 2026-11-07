@@ -42,17 +42,29 @@ public static class BatteryIconRenderer
         "M5.35 3.85 H10.65 L10.3 6.1 " +
         "C10.22 6.65 9.88 6.92 9.35 6.92 H6.65 " +
         "C6.12 6.92 5.78 6.65 5.7 6.1 Z";
+    // Reference: https://shops.flydigi.com/pages/flydigi-apex4-gaming-controller-user-manual
+    // Landmarks follow Flydigi's public APEX 4 front-view manual: offset sticks,
+    // central screen, D-pad below the left stick, and ABXY above the right stick.
+    // This compact vector is independently simplified for the 16–120 px UI.
     private const string ApexShellPath =
-        "M3.4 4 C2.65 4.1 2.25 4.75 1.85 5.75 " +
-        "L0.95 9.15 C0.5 10.85 0.9 12.45 2.05 12.75 " +
-        "C2.95 13 3.55 12.25 3.95 11.25 L4.6 9.7 " +
-        "C4.82 9.15 5.2 8.95 5.8 8.95 H10.2 " +
-        "C10.8 8.95 11.18 9.15 11.4 9.7 L12.05 11.25 " +
-        "C12.45 12.25 13.05 13 13.95 12.75 " +
-        "C15.1 12.45 15.5 10.85 15.05 9.15 L14.15 5.75 " +
-        "C13.75 4.75 13.35 4.1 12.6 4 L10.8 3.65 H5.2 Z";
+        "M3.1 4.1 C2.4 4.2 2 4.8 1.65 5.85 " +
+        "L0.9 9.2 C0.5 10.9 0.85 12.2 1.75 12.55 " +
+        "L2.55 12.85 C3.15 13.05 3.45 12.65 3.9 12.15 " +
+        "L5.25 10.7 C5.55 10.35 5.9 10.15 6.4 10.15 H9.6 " +
+        "C10.1 10.15 10.45 10.35 10.75 10.7 L12.1 12.15 " +
+        "C12.55 12.65 12.85 13.05 13.45 12.85 L14.25 12.55 " +
+        "C15.15 12.2 15.5 10.9 15.1 9.2 L14.35 5.85 " +
+        "C14 4.8 13.6 4.2 12.9 4.1 L10.7 3.65 H5.3 Z";
+    private const string ApexShouldersPath =
+        "M3.1 4.1 C3.8 3.45 4.75 3.5 5.45 3.7 " +
+        "M10.55 3.7 C11.25 3.5 12.2 3.45 12.9 4.1";
+    private const string ApexTopPlatePath =
+        "M6.25 4.1 H9.75 C10.25 4.1 10.5 4.45 10.25 4.85 " +
+        "L9.35 6.9 C9.2 7.2 8.95 7.35 8.6 7.35 H7.4 " +
+        "C7.05 7.35 6.8 7.2 6.65 6.9 L5.75 4.85 " +
+        "C5.5 4.45 5.75 4.1 6.25 4.1 Z";
     private const string ApexScreenPath =
-        "M6.25 4.35 H9.75 V6.45 H6.25 Z";
+        "M6.85 5.4 H9.15 V6.15 H6.85 Z";
     private static readonly int[] NativeIconSizes = [16, 24, 32, 48];
     private static readonly int[] WindowIconSizes = [48, 96, 120, 144, 192, 256];
     private static readonly DrawingColor Outline = DrawingColor.FromArgb(255, 20, 22, 27);
@@ -83,6 +95,8 @@ public static class BatteryIconRenderer
     private static readonly Geometry RefinedDualSenseTouchpad =
         CreateFrozenGeometry(RefinedDualSenseTouchpadPath);
     private static readonly Geometry ApexShell = CreateFrozenGeometry(ApexShellPath);
+    private static readonly Geometry ApexShoulders = CreateFrozenGeometry(ApexShouldersPath);
+    private static readonly Geometry ApexTopPlate = CreateFrozenGeometry(ApexTopPlatePath);
     private static readonly Geometry ApexScreen = CreateFrozenGeometry(ApexScreenPath);
     private static readonly Lazy<BitmapSource> ConnectedLightController = new(
         () => LoadFrozenResourceBitmap(
@@ -219,7 +233,7 @@ public static class BatteryIconRenderer
             ControllerIconKind.DualSense => RenderControllerGlyphCore(
                 size, body, body, CreateFrozenBrush(87, 151, 246), details),
             ControllerIconKind.FlydigiApex => RenderApexGlyphCore(
-                size, body, body, CreateFrozenBrush(143, 92, 246), details),
+                size, body, body, CreateFrozenBrush(132, 172, 242), details),
             ControllerIconKind.GenericGamepad => RenderGenericGlyphCore(size, body, details),
             _ => throw new ArgumentOutOfRangeException(nameof(iconKind), iconKind, null),
         };
@@ -252,7 +266,7 @@ public static class BatteryIconRenderer
         return iconKind switch
         {
             ControllerIconKind.FlydigiApex => RenderApexGlyphCore(
-                size, MediaBrushes.White, outline, CreateFrozenBrush(143, 92, 246), outline),
+                size, MediaBrushes.White, outline, CreateFrozenBrush(132, 172, 242), outline),
             _ => RenderConnectedControllerGlyph(TrayTheme.LightTaskbar, size, iconKind),
         };
     }
@@ -395,9 +409,11 @@ public static class BatteryIconRenderer
             var scale = (size - 2d) / 16d;
             context.PushTransform(new TranslateTransform(1, 1));
             context.PushTransform(new ScaleTransform(scale, scale));
-            var pen = new MediaPen(outline, 1d / scale);
+            var pen = new MediaPen(outline, Math.Max(1d / scale, 0.23d));
             context.DrawGeometry(body, pen, ApexShell);
-            context.DrawGeometry(center, new MediaPen(outline, 0.45d / scale), ApexScreen);
+            context.DrawGeometry(null, pen, ApexShoulders);
+            context.DrawGeometry(null, new MediaPen(details, Math.Max(1d / scale, 0.19d)), ApexTopPlate);
+            context.DrawGeometry(center, new MediaPen(details, Math.Max(0.8d / scale, 0.16d)), ApexScreen);
             if (detail == ControllerGlyphDetail.Full)
                 DrawApexDetails(context, details, scale);
             context.Pop();
@@ -408,15 +424,19 @@ public static class BatteryIconRenderer
 
     private static void DrawApexDetails(DrawingContext context, MediaBrush brush, double scale)
     {
-        var pen = new MediaPen(brush, 0.85d / scale);
-        context.DrawLine(pen, new System.Windows.Point(3.55, 6.4), new System.Windows.Point(3.55, 8.35));
-        context.DrawLine(pen, new System.Windows.Point(2.58, 7.38), new System.Windows.Point(4.52, 7.38));
-        context.DrawEllipse(null, pen, new System.Windows.Point(5.25, 9.35), 0.62, 0.62);
-        context.DrawEllipse(null, pen, new System.Windows.Point(9.25, 8.55), 0.62, 0.62);
-        context.DrawEllipse(brush, null, new System.Windows.Point(11.7, 6.15), 0.3, 0.3);
-        context.DrawEllipse(brush, null, new System.Windows.Point(12.65, 7.1), 0.3, 0.3);
-        context.DrawEllipse(brush, null, new System.Windows.Point(11.7, 8.05), 0.3, 0.3);
-        context.DrawEllipse(brush, null, new System.Windows.Point(10.75, 7.1), 0.3, 0.3);
+        var pen = new MediaPen(brush, Math.Max(1d / scale, 0.17d));
+        context.DrawEllipse(null, pen, new System.Windows.Point(4.15, 6.65), 1, 1);
+        context.DrawEllipse(null, pen, new System.Windows.Point(4.15, 6.65), 0.58, 0.58);
+        context.DrawEllipse(null, pen, new System.Windows.Point(10.35, 8.55), 0.98, 0.98);
+        context.DrawEllipse(null, pen, new System.Windows.Point(10.35, 8.55), 0.56, 0.56);
+        context.DrawLine(pen, new System.Windows.Point(6.1, 7.65), new System.Windows.Point(6.1, 9.55));
+        context.DrawLine(pen, new System.Windows.Point(5.15, 8.6), new System.Windows.Point(7.05, 8.6));
+        context.DrawEllipse(null, pen, new System.Windows.Point(11.75, 5.35), 0.34, 0.34);
+        context.DrawEllipse(null, pen, new System.Windows.Point(12.55, 6.05), 0.34, 0.34);
+        context.DrawEllipse(null, pen, new System.Windows.Point(11.75, 6.75), 0.34, 0.34);
+        context.DrawEllipse(null, pen, new System.Windows.Point(10.95, 6.05), 0.34, 0.34);
+        context.DrawEllipse(brush, null, new System.Windows.Point(7.65, 9.55), 0.18, 0.18);
+        context.DrawEllipse(brush, null, new System.Windows.Point(8.35, 9.55), 0.18, 0.18);
     }
 
     private static BitmapSource RenderGenericGlyphCore(int size, MediaBrush body, MediaBrush details)

@@ -970,12 +970,18 @@ fn paint(hwnd: Handle) {
             }
         }
         draw_battery_status_icon(dc, battery.percentage, battery.state);
-        let state_label = match battery.state {
-            controller_battery_native::ChargeState::Charging => "Charging",
-            controller_battery_native::ChargeState::Discharging => "On battery",
-            controller_battery_native::ChargeState::Full => "Full",
-            controller_battery_native::ChargeState::Flat => "Empty",
-            controller_battery_native::ChargeState::Unknown => "Battery status unknown",
+        let state_label = if source.starts_with("Flydigi")
+            && battery.state == controller_battery_native::ChargeState::Unknown
+        {
+            "Check Flydigi Space Station battery data"
+        } else {
+            match battery.state {
+                controller_battery_native::ChargeState::Charging => "Charging",
+                controller_battery_native::ChargeState::Discharging => "On battery",
+                controller_battery_native::ChargeState::Full => "Full",
+                controller_battery_native::ChargeState::Flat => "Empty",
+                controller_battery_native::ChargeState::Unknown => "Battery status unknown",
+            }
         };
         draw_text(
             dc,

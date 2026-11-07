@@ -126,13 +126,16 @@ internal static class Program
 
         using var offline = new Icon(Path.Combine(directory, "window-dualsense-disconnected-light.ico"), 256, 256);
         using var connected = new Icon(Path.Combine(directory, "window-dualsense-connected-light.ico"), 256, 256);
-        using var comparison = new Bitmap(512, 256);
+        using var apex = new Icon(Path.Combine(directory, "window-flydigi-apex-connected-light.ico"), 256, 256);
+        using var comparison = new Bitmap(768, 256);
         using var comparisonGraphics = Graphics.FromImage(comparison);
         using var offlineBitmap = offline.ToBitmap();
         using var connectedBitmap = connected.ToBitmap();
+        using var apexBitmap = apex.ToBitmap();
         comparisonGraphics.Clear(Color.White);
         comparisonGraphics.DrawImage(offlineBitmap, 0, 0, 256, 256);
         comparisonGraphics.DrawImage(connectedBitmap, 256, 0, 256, 256);
+        comparisonGraphics.DrawImage(apexBitmap, 512, 0, 256, 256);
         comparison.Save(Path.Combine(directory, "window-icon-qa.png"), ImageFormat.Png);
 
         string[] batteries = ["battery", "battery-low", "battery-medium", "battery-full", "battery-charging"];

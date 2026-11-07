@@ -6,11 +6,12 @@ The native app is installed alongside, not over, the C# stable release. It uses 
 
 ## Local results
 
-- Rust: 9 unit tests passed; formatting and Clippy (`-D warnings`) passed on the local gnullvm target.
+- Rust: 10 unit tests passed; formatting and Clippy (`-D warnings`) passed on the local gnullvm target.
 - C#: 354 tests passed across Core, HID, Watcher and App.
 - The native NSIS Setup was built locally; silent install, upgrade, current-user sign-in registration, one-Watcher check and silent uninstall passed. A real uninstall defect (running executable left behind) was found in the first test and corrected by stopping only processes whose executable path matches the exact native install directory.
 - Installed native build displayed a live USB DualSense at 95% and then an offline window when the controller disappeared. The Compact-to-TwoIcons menu action and sign-in listener toggle were exercised in the actual UI. A Win32 menu dispatch defect found during that test was corrected.
-- Reconnect and game/Steam coexistence are not yet confirmed by this test. Nor are native Bluetooth and Flydigi hardware paths reverified here.
+- On 2026-11-08, after a manual disconnect/reconnect, the C# stable app and Rust probe both reported the same Flydigi APEX 4 at approximately 40%, discharging; the installed Rust window displayed the same value. The controller icon was revised against the [official APEX 4 manual front view](https://shops.flydigi.com/pages/flydigi-apex4-gaming-controller-user-manual), without bundling Flydigi's image. The former C# Watcher task was disabled locally, with its installation preserved for rollback; the native sign-in Watcher is registered and running.
+- A controlled native background exit-and-relaunch across a physical disconnect has not yet been confirmed. Game/Steam coexistence, resume and native Bluetooth hardware paths also remain unverified.
 
 ## Short idle measurement
 

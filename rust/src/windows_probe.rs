@@ -130,6 +130,27 @@ unsafe extern "system" {
 unsafe extern "system" {
     fn XInputGetBatteryInformation(index: u32, kind: u8, battery: *mut [u8; 2]) -> u32;
 }
+#[link(name = "advapi32")]
+unsafe extern "system" {
+    fn RegOpenKeyExW(
+        root: Handle,
+        subkey: *const u16,
+        options: u32,
+        access: u32,
+        key: *mut Handle,
+    ) -> i32;
+    fn RegEnumKeyExW(
+        key: Handle,
+        index: u32,
+        name: *mut u16,
+        length: *mut u32,
+        reserved: *mut u32,
+        class: *mut u16,
+        class_length: *mut u32,
+        modified: *mut c_void,
+    ) -> i32;
+    fn RegCloseKey(key: Handle) -> i32;
+}
 
 struct Owned(Handle);
 impl Drop for Owned {
@@ -162,25 +183,84 @@ pub fn probe() -> Vec<Detection> {
             });
         }
     }
-    if xinput.len() == 1
-        && let Some(device) = query_flydigi()
-        && device.connected
-    {
-        let source = if device.code.eq_ignore_ascii_case("k2")
-            || device.name.to_ascii_uppercase().contains("APEX 4")
-        {
-            "Flydigi APEX 4".to_owned()
-        } else {
-            device.name.clone()
-        };
-        found.push(Detection {
-            source,
-            battery: flydigi::normalize(&device),
-        });
-        return found;
+    if xinput.len() == 1 {
+        let service = query_flydigi().filter(|device| device.connected);
+        if let Some(device) = service {
+            let source = if device.code.eq_ignore_ascii_case("k2")
+                || device.name.to_ascii_uppercase().contains("APEX 4")
+            {
+                "Flydigi APEX 4".to_owned()
+            } else {
+                device.name.clone()
+            };
+            found.push(Detection {
+                source,
+                battery: flydigi::normalize(&device),
+            });
+            return found;
+        }
+        if flydigi_apex_receiver_present() {
+            let xinput_battery = xinput.remove(0).battery;
+            found.push(Detection {
+                source: "Flydigi APEX 4 (XInput)".to_owned(),
+                battery: xinput_battery,
+            });
+            return found;
+        }
     }
     found.extend(xinput);
     found
+}
+
+fn flydigi_apex_receiver_present() -> bool {
+    const KEY: &str = "SYSTEM\\CurrentControlSet\\Enum\\USB\\VID_045E&PID_028E";
+    let mut key = ptr::null_mut();
+    let path: Vec<u16> = std::ffi::OsStr::new(KEY)
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    if unsafe {
+        RegOpenKeyExW(
+            0x8000_0002usize as Handle,
+            path.as_ptr(),
+            0,
+            0x20019,
+            &mut key,
+        )
+    } != 0
+    {
+        return false;
+    }
+    let mut found = false;
+    for index in 0..64 {
+        let mut name = [0u16; 256];
+        let mut length = name.len() as u32;
+        if unsafe {
+            RegEnumKeyExW(
+                key,
+                index,
+                name.as_mut_ptr(),
+                &mut length,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        } != 0
+        {
+            break;
+        }
+        if is_apex_instance(&String::from_utf16_lossy(&name[..length as usize])) {
+            found = true;
+            break;
+        }
+    }
+    unsafe { RegCloseKey(key) };
+    found
+}
+
+fn is_apex_instance(name: &str) -> bool {
+    name.to_ascii_uppercase().starts_with("FLYDIGI_APEX")
 }
 
 fn query_flydigi() -> Option<flydigi::FlydigiDevice> {
@@ -496,4 +576,15 @@ fn read_report(handle: Handle, event: Handle, length: usize) -> Option<Vec<u8>> 
         return None;
     }
     Some(report)
+}
+
+#[cfg(test)]
+mod registry_tests {
+    use super::is_apex_instance;
+
+    #[test]
+    fn only_apex_receiver_identity_is_apex() {
+        assert!(is_apex_instance("FLYDIGI_APEX_4"));
+        assert!(!is_apex_instance("FLYDIGI_VADER_4"));
+    }
 }
