@@ -6,3 +6,5 @@ obj/
 /artifacts/
 /diagnostics/
 /testResults.xml
+/rust/target/
+!/rust/src/bin/

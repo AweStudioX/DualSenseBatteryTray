@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Windows.Media.Imaging;
 using DualSenseBatteryTray.App.Tray;
 using DualSenseBatteryTray.Core.Battery;
+using DualSenseBatteryTray.Core.Devices;
 
 namespace DualSenseBatteryTray.App.Tests;
 
@@ -421,6 +422,47 @@ public sealed class BatteryIconRendererTests
             Assert.Contains(pixels, IsLightControllerPixel);
             Assert.Contains(pixels, IsDarkOutlinePixel);
         }
+    }
+
+    [Fact]
+    public void Preview_window_icons_share_frame_sizes_and_only_connected_has_blue()
+    {
+        using var offline = BatteryIconRenderer.RenderDisconnectedWindowIcon();
+        using var connected = BatteryIconRenderer.RenderConnectedWindowIcon(ControllerIconKind.DualSense);
+        var offlineFrames = DecodeFrames(offline);
+        var connectedFrames = DecodeFrames(connected);
+
+        Assert.Equal([48, 96, 120, 144, 192, 256], offlineFrames.Keys.Order().ToArray());
+        Assert.Equal([48, 96, 120, 144, 192, 256], connectedFrames.Keys.Order().ToArray());
+        foreach (var size in offlineFrames.Keys)
+        {
+            Assert.DoesNotContain(CopyPixels(offlineFrames[size]), IsConnectedBluePixel);
+            Assert.Contains(CopyPixels(connectedFrames[size]), IsConnectedBluePixel);
+        }
+    }
+
+    [Fact]
+    public void Preview_tray_icons_distinguish_connection_and_charging_at_native_size()
+    {
+        using var offline = BatteryIconRenderer.RenderDisconnectedControllerTrayIcon(TrayTheme.LightTaskbar);
+        using var connected = BatteryIconRenderer.RenderReferenceConnectedTrayIcon(
+            TrayTheme.LightTaskbar, ControllerIconKind.DualSense, charging: false);
+        using var charging = BatteryIconRenderer.RenderReferenceConnectedTrayIcon(
+            TrayTheme.LightTaskbar, ControllerIconKind.DualSense, charging: true);
+        var offlinePixels = CopyPixels(DecodeFrames(offline)[16]);
+        var connectedPixels = CopyPixels(DecodeFrames(connected)[16]);
+        var chargingPixels = CopyPixels(DecodeFrames(charging)[16]);
+
+        Assert.DoesNotContain(offlinePixels, IsConnectedBluePixel);
+        Assert.Contains(connectedPixels, IsConnectedBluePixel);
+        Assert.NotEqual(ComputeHash(connectedPixels), ComputeHash(chargingPixels));
+    }
+
+    [Fact]
+    public void Preview_window_small_icon_contains_native_frames()
+    {
+        using var icon = BatteryIconRenderer.RenderPreviewWindowSmallIcon();
+        Assert.Equal([16, 24, 32, 48], DecodeFrames(icon).Keys.Order().ToArray());
     }
 
     [Fact]

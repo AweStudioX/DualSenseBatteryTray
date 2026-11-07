@@ -54,6 +54,12 @@ Windows 托盘电量工具 · DualSense · XInput · 飞智八爪鱼 4
 3. 手柄断开或持续停止有效上报后，应用退出并移除图标；后台 Watcher 保留检测能力。
 4. 卸载：**设置 → 应用 → 已安装的应用 → DualSense Battery Tray**。
 
+### Rust 原生版（独立预览）
+
+仓库另有 [Rust 原生版](rust/Cargo.toml)，使用 Win32 窗口与托盘，不要求用户安装 .NET。它已实现双图标/Compact 切换、低电量通知、登录后监听和多手柄选择；下一次版本标签的 Release 流程会额外生成独立的 `ControllerBatteryNative-...-Setup.exe` 与 ZIP，不会覆盖上面的 C# 稳定版。首次安装后的监听在后台运行，手柄出现才打开托盘；从开始菜单可以打开详情窗口。
+
+当前本机安装/升级/卸载烟测和短时资源测量见 [原生版验证记录](docs/verification/2026-11-07-rust-native.md)。重连、休眠恢复及 Steam/游戏共存仍需实机验收，暂不把它标为默认稳定下载。
+
 安装包目前未签名，Windows SmartScreen 可能显示提示。请核对 GitHub Release 来源与附带 SHA-256。ZIP 为手动安装包，**不是便携版**；解压后运行 install.ps1，移除使用 uninstall.ps1。Setup 安装请从 Windows 应用列表卸载。
 
 ## 原生蓝牙（源码预览）

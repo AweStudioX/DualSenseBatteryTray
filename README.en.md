@@ -54,6 +54,12 @@ Unavailable readings display a question mark, never a fabricated 100%. Flydigi m
 3. Disconnecting or persistently losing valid advancing reports closes the app and removes its icons. The Watcher stays available for later connections.
 4. Remove via **Settings → Apps → Installed apps → DualSense Battery Tray**.
 
+### Rust native edition (separate preview)
+
+The repository also contains a [Rust native edition](rust/Cargo.toml) with a Win32 window and tray, requiring no .NET installation for end users. It supports Two icons/Compact layouts, low-battery alerts, sign-in listening, and selection among detected controllers. The next tagged Release workflow additionally packages a separate `ControllerBatteryNative-...-Setup.exe` and ZIP; it does not overwrite the C# stable installation.
+
+See the [native verification record](docs/verification/2026-11-07-rust-native.md) for the local install/upgrade/uninstall smoke test and short idle measurements. Reconnect, resume, and Steam/game coexistence still need hardware acceptance before this becomes the default stable download.
+
 The installer is currently unsigned, so Windows SmartScreen may show a warning. Verify the GitHub Release source and supplied SHA-256. The ZIP is a **manual-install package, not a portable edition**: extract it and run install.ps1; remove it with uninstall.ps1. For Setup installations, use Windows Installed apps instead.
 
 ## Native Bluetooth (source preview)

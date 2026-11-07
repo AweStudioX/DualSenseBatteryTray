@@ -156,6 +156,44 @@ jobs:
             -LegacyPublishDirectory '${{ steps.setup.outputs.publish }}' `
             -MakensisPath '${{ steps.nsis.outputs.compiler }}'
 
+      - name: Build Rust native companion
+        id: native
+        shell: pwsh
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+          if ($LASTEXITCODE -ne 0) { throw 'Rust formatting check failed.' }
+          cargo test --manifest-path rust/Cargo.toml --locked --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed.' }
+          cargo clippy --manifest-path rust/Cargo.toml --locked --target x86_64-pc-windows-msvc --all-targets -- -D warnings
+          if ($LASTEXITCODE -ne 0) { throw 'Rust clippy failed.' }
+          $icons = Join-Path $env:RUNNER_TEMP 'native-icons'
+          $publish = Join-Path $env:RUNNER_TEMP 'native-publish'
+          New-Item -ItemType Directory -Path $icons -Force | Out-Null
+          Copy-Item src/DualSenseBatteryTray.App/Assets/App/dualsense-disconnected.ico $icons
+          dotnet run --project tools/DualSenseBatteryTray.IconExport/DualSenseBatteryTray.IconExport.csproj --configuration Release -- $icons
+          if ($LASTEXITCODE -ne 0) { throw 'Native icon export failed.' }
+          & rust/build-msvc.ps1
+          & rust/package-native.ps1 `
+            -BinaryPath (Join-Path $env:GITHUB_WORKSPACE 'rust/target/x86_64-pc-windows-msvc/release/controller-battery-native.exe') `
+            -IconDirectory $icons `
+            -Destination $publish
+          $setup = Join-Path $env:GITHUB_WORKSPACE "ControllerBatteryNative-${{ steps.version.outputs.tag }}-win-x64-Setup.exe"
+          & rust/build-installer.ps1 `
+            -PublishDirectory $publish `
+            -MakensisPath '${{ steps.nsis.outputs.compiler }}' `
+            -Version '${{ steps.version.outputs.version }}' `
+            -OutputPath $setup
+          & rust/installer-smoke.ps1 -SetupPath $setup
+          $archive = Join-Path $env:GITHUB_WORKSPACE "ControllerBatteryNative-${{ steps.version.outputs.tag }}-win-x64.zip"
+          Compress-Archive -Path (Join-Path $publish '*') -DestinationPath $archive -CompressionLevel Optimal
+          foreach ($file in @($setup, $archive)) {
+            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $(Split-Path -Leaf $file)" | Set-Content -LiteralPath "$file.sha256" -Encoding ascii -NoNewline
+          }
+          "setup=$setup" >> $env:GITHUB_OUTPUT
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+
       - name: Assemble release archive
         id: package
         shell: pwsh
@@ -203,6 +241,10 @@ jobs:
             ${{ steps.setup_checksum.outputs.checksum }}
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.checksum }}
+            ${{ steps.native.outputs.setup }}
+            ${{ steps.native.outputs.setup }}.sha256
+            ${{ steps.native.outputs.archive }}
+            ${{ steps.native.outputs.archive }}.sha256
 
       - name: Create GitHub Release
         if: github.event_name == 'push' && github.ref_type == 'tag'
@@ -215,6 +257,10 @@ jobs:
             '${{ steps.package.outputs.checksum }}' `
             '${{ steps.setup.outputs.setup }}' `
             '${{ steps.setup_checksum.outputs.checksum }}' `
+            '${{ steps.native.outputs.setup }}' `
+            '${{ steps.native.outputs.setup }}.sha256' `
+            '${{ steps.native.outputs.archive }}' `
+            '${{ steps.native.outputs.archive }}.sha256' `
             --verify-tag `
             --title "DualSense Battery Tray $env:GITHUB_REF_NAME" `
             --generate-notes

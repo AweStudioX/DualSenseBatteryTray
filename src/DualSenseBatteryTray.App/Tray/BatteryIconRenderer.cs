@@ -54,6 +54,7 @@ public static class BatteryIconRenderer
     private const string ApexScreenPath =
         "M6.25 4.35 H9.75 V6.45 H6.25 Z";
     private static readonly int[] NativeIconSizes = [16, 24, 32, 48];
+    private static readonly int[] WindowIconSizes = [48, 96, 120, 144, 192, 256];
     private static readonly DrawingColor Outline = DrawingColor.FromArgb(255, 20, 22, 27);
     private static readonly DrawingColor White = DrawingColor.FromArgb(255, 255, 255, 255);
     private static readonly DrawingColor Green = DrawingColor.FromArgb(255, 46, 204, 113);
@@ -173,7 +174,7 @@ public static class BatteryIconRenderer
     internal static ControllerGlyphDetail SelectControllerGlyphDetail(int size) => size switch
     {
         16 => ControllerGlyphDetail.Minimal,
-        24 or 32 or 48 => ControllerGlyphDetail.Full,
+        24 or 32 or 48 or 96 or 120 or 144 or 192 or 256 => ControllerGlyphDetail.Full,
         _ => throw new ArgumentOutOfRangeException(nameof(size), size, null),
     };
 
@@ -222,6 +223,162 @@ public static class BatteryIconRenderer
             ControllerIconKind.GenericGamepad => RenderGenericGlyphCore(size, body, details),
             _ => throw new ArgumentOutOfRangeException(nameof(iconKind), iconKind, null),
         };
+    }
+
+    internal static DrawingIcon RenderConnectedWindowIcon(ControllerIconKind iconKind)
+    {
+        var bytes = EncodeIconFrames(WindowIconSizes
+            .Select(size => (size, RenderConnectedWindowGlyph(size, iconKind))));
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var icon = new DrawingIcon(stream, 256, 256);
+        return (DrawingIcon)icon.Clone();
+    }
+
+    internal static DrawingIcon RenderDisconnectedWindowIcon()
+    {
+        var source = RenderApplicationIcon();
+        var bytes = EncodeIconFrames(WindowIconSizes
+            .Select(size => (size, RenderSourceIcon(source, size))));
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var icon = new DrawingIcon(stream, 256, 256);
+        return (DrawingIcon)icon.Clone();
+    }
+
+    private static BitmapSource RenderConnectedWindowGlyph(int size, ControllerIconKind iconKind)
+    {
+        if (iconKind == ControllerIconKind.DualSense)
+            return RenderConnectedApplicationGlyph(size);
+        var outline = new SolidColorBrush(OutlineMedia);
+        return iconKind switch
+        {
+            ControllerIconKind.FlydigiApex => RenderApexGlyphCore(
+                size, MediaBrushes.White, outline, CreateFrozenBrush(143, 92, 246), outline),
+            _ => RenderConnectedControllerGlyph(TrayTheme.LightTaskbar, size, iconKind),
+        };
+    }
+
+    private static BitmapSource RenderConnectedApplicationGlyph(int size)
+    {
+        const int width = 256;
+        var source = new FormatConvertedBitmap(RenderApplicationIcon(), PixelFormats.Bgra32, null, 0);
+        var pixels = new byte[width * width * 4];
+        source.CopyPixels(pixels, width * 4, 0);
+        var visited = new bool[width * width];
+        var queue = new Queue<int>();
+        queue.Enqueue(65 * width + 128);
+        var changed = 0;
+        while (queue.Count > 0)
+        {
+            var point = queue.Dequeue();
+            if (visited[point])
+                continue;
+            visited[point] = true;
+            var x = point % width;
+            var y = point / width;
+            if (x is < 84 or > 172 || y is < 39 or > 107)
+                continue;
+            var offset = point * 4;
+            var blue = pixels[offset];
+            var green = pixels[offset + 1];
+            var red = pixels[offset + 2];
+            if (pixels[offset + 3] < 200 || Math.Min(red, Math.Min(green, blue)) < 105 ||
+                Math.Max(red, Math.Max(green, blue)) - Math.Min(red, Math.Min(green, blue)) > 25)
+                continue;
+
+            var shade = Math.Clamp((y - 45) / 58d, 0, 1);
+            var brightness = red / 255d;
+            pixels[offset] = (byte)Math.Round(250 * brightness);
+            pixels[offset + 1] = (byte)Math.Round((151 + 43 * shade) * brightness);
+            pixels[offset + 2] = (byte)Math.Round((74 + 70 * shade) * brightness);
+            changed++;
+            if (x > 84) queue.Enqueue(point - 1);
+            if (x < 172) queue.Enqueue(point + 1);
+            if (y > 39) queue.Enqueue(point - width);
+            if (y < 107) queue.Enqueue(point + width);
+        }
+        if (changed is < 1000 or > 6000)
+            throw new InvalidOperationException($"Unexpected touchpad area: {changed} pixels.");
+        var recolored = BitmapSource.Create(width, width, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+        recolored.Freeze();
+        return RenderSourceIcon(recolored, size);
+    }
+
+    internal static DrawingIcon RenderReferenceConnectedTrayIcon(
+        TrayTheme theme, ControllerIconKind iconKind, bool charging)
+    {
+        var bytes = EncodeIconFrames(NativeIconSizes.Select(size =>
+            (size, RenderStatusTrayFrame(theme, iconKind, connected: true, charging, size))));
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var icon = new DrawingIcon(stream, 16, 16);
+        return (DrawingIcon)icon.Clone();
+    }
+
+    internal static DrawingIcon RenderPreviewWindowSmallIcon()
+    {
+        var bytes = EncodeIcon(size => RenderStatusTrayFrame(
+            TrayTheme.LightTaskbar, ControllerIconKind.GenericGamepad,
+            connected: false, charging: false, size));
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var icon = new DrawingIcon(stream, 16, 16);
+        return (DrawingIcon)icon.Clone();
+    }
+
+    private static BitmapSource RenderStatusTrayFrame(
+        TrayTheme theme, ControllerIconKind iconKind, bool connected, bool charging, int size)
+    {
+        var body = connected
+            ? theme == TrayTheme.DarkTaskbar ? MediaBrushes.White : new SolidColorBrush(OutlineMedia)
+            : theme == TrayTheme.DarkTaskbar ? CreateFrozenBrush(185, 197, 201) : CreateFrozenBrush(79, 94, 99);
+        var details = theme == TrayTheme.DarkTaskbar
+            ? new SolidColorBrush(OutlineMedia)
+            : MediaBrushes.White;
+        var controller = RenderGenericGlyphCore(size, body, details);
+        var visual = new DrawingVisual();
+        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+        using (var context = visual.RenderOpen())
+        {
+            context.DrawImage(controller, new System.Windows.Rect(0, 0, size, size));
+            var scale = size / 16d;
+            context.PushTransform(new ScaleTransform(scale, scale));
+            var accent = !connected ? CreateFrozenBrush(133, 146, 151) : iconKind switch
+            {
+                ControllerIconKind.DualSense => CreateFrozenBrush(55, 145, 249),
+                ControllerIconKind.FlydigiApex => CreateFrozenBrush(143, 92, 246),
+                _ => CreateFrozenBrush(66, 170, 155),
+            };
+            context.DrawRoundedRectangle(accent, null, new System.Windows.Rect(6.2, 4.1, 3.6, 1.6), 0.6, 0.6);
+            if (charging)
+            {
+                context.DrawEllipse(
+                    CreateFrozenBrush(36, 150, 191),
+                    new MediaPen(details, 0.6),
+                    new System.Windows.Point(13.0, 3.0), 2.7, 2.7);
+                context.DrawGeometry(
+                    MediaBrushes.White,
+                    null,
+                    CreateFrozenGeometry("M13.2 1.0 L12.1 3.2 H13 L12.5 5.0 L14.5 2.7 H13.5 L14.1 1.0 Z"));
+            }
+            context.Pop();
+        }
+        return RenderVisual(visual, size);
+    }
+
+    private static BitmapSource RenderSourceIcon(BitmapSource source, int size)
+    {
+        var visual = new DrawingVisual();
+        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+        using (var context = visual.RenderOpen())
+            context.DrawImage(source, new System.Windows.Rect(0, 0, size, size));
+        return RenderVisual(visual, size);
+    }
+
+    internal static DrawingIcon RenderDisconnectedControllerTrayIcon(TrayTheme theme)
+    {
+        var bytes = EncodeIcon(size => RenderStatusTrayFrame(
+            theme, ControllerIconKind.GenericGamepad, connected: false, charging: false, size));
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var icon = new DrawingIcon(stream, 16, 16);
+        return (DrawingIcon)icon.Clone();
     }
 
     private static BitmapSource RenderApexGlyphCore(

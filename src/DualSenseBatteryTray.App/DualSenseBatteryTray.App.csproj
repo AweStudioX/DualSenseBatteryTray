@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DualSenseBatteryTray.App.Tests" />
+    <InternalsVisibleTo Include="DualSenseBatteryTray.IconExport" />
   </ItemGroup>
 
   <ItemGroup>
