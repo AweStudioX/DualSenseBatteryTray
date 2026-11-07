@@ -3,7 +3,7 @@ using DualSenseBatteryTray.Hid.Native;
 
 namespace DualSenseBatteryTray.Hid;
 
-public sealed class HidDeviceEnumerator : IControllerPresence
+public sealed class HidDeviceEnumerator : IControllerTransportPresence
 {
     public IReadOnlyList<string> FindPaths(ControllerIdentity identity)
     {
@@ -19,7 +19,8 @@ public sealed class HidDeviceEnumerator : IControllerPresence
 
             if (HidNative.TryGetAttributes(handle, out var vendorId, out var productId)
                 && vendorId == identity.VendorId
-                && productId == identity.ProductId)
+                && productId == identity.ProductId
+                && IsSupportedInputCollection(handle))
             {
                 matchingPaths.Add(path);
             }
@@ -29,4 +30,27 @@ public sealed class HidDeviceEnumerator : IControllerPresence
     }
 
     public bool IsPresent(ControllerIdentity identity) => FindPaths(identity).Any();
+
+    private static bool IsSupportedInputCollection(Microsoft.Win32.SafeHandles.SafeFileHandle handle)
+    {
+        try
+        {
+            return HidNative.GetInputReportByteLength(handle) is
+                DualSenseInputReport.UsbLength or DualSenseInputReport.BluetoothLength;
+        }
+        catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    public bool IsBluetooth(ControllerIdentity identity)
+    {
+        var path = FindPaths(identity).FirstOrDefault();
+        if (path is null)
+            return false;
+        using var handle = HidNative.OpenForAttributes(path);
+        return !handle.IsInvalid
+            && HidNative.GetInputReportByteLength(handle) == DualSenseInputReport.BluetoothLength;
+    }
 }

@@ -88,7 +88,9 @@ public sealed class WindowsControllerDiscovery
         if (_hid.IsPresent(ControllerIdentity.UsbDualSense))
         {
             return new ActiveController(
-                ControllerProfile.DualSenseUsb,
+                _hid is IControllerTransportPresence transport && transport.IsBluetooth(ControllerIdentity.UsbDualSense)
+                    ? ControllerProfile.DualSenseBluetooth
+                    : ControllerProfile.DualSenseUsb,
                 () => new DualSenseHidReader());
         }
 

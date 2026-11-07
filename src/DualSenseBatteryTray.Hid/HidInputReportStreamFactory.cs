@@ -58,7 +58,10 @@ internal sealed class HidInputReportStreamFactory : IHidInputReportSessionFactor
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var inputReportByteLength = HidNative.GetInputReportByteLength(handle);
+            var (inputReportByteLength, featureLength) = HidNative.GetReportByteLengths(handle);
+            // One request per Bluetooth open; if unavailable, accept only genuine full reports.
+            _ = DualSenseBluetoothInitialization.Initialize(inputReportByteLength, featureLength,
+                length => HidNative.TryRequestBluetoothFullReports(handle, length));
             cancellationToken.ThrowIfCancellationRequested();
             stream = new FileStream(
                 handle,

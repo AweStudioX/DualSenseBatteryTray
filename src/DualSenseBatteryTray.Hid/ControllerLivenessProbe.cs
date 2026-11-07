@@ -66,7 +66,8 @@ public sealed class ControllerLivenessProbe : IControllerLivenessProbe
             if (session is null)
                 return ControllerLivenessProbeResult.AdapterAbsent;
 
-            var observer = new DualSenseReportLivenessObserver(RequiredObservations);
+            var observer = new DualSenseReportLivenessObserver(RequiredObservations,
+                bluetooth: session.ReportLength == DualSenseInputReport.BluetoothLength);
             var buffer = new byte[session.ReportLength];
 
             while (true)

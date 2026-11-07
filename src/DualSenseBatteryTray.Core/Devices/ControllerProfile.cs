@@ -27,6 +27,11 @@ public sealed record ControllerProfile(
         ControllerIconKind.DualSense,
         HasPrecisePercentage: true);
 
+    public static ControllerProfile DualSenseBluetooth { get; } = DualSenseUsb with
+    {
+        ConnectionType = "Bluetooth",
+    };
+
     public static ControllerProfile FlydigiApex4Receiver { get; } = new(
         "Flydigi APEX 4 (八爪鱼 4)",
         "2.4 GHz receiver · XInput",

@@ -61,6 +61,17 @@ public sealed class WindowsControllerDiscoveryTests
             discovery.FindActiveController()!.Profile);
     }
 
+    [Fact]
+    public void Bluetooth_DualSense_gets_the_Bluetooth_connection_label()
+    {
+        var discovery = new WindowsControllerDiscovery(
+            new SlotApi(), new FlydigiDetector(false), new ServiceClient(null),
+            new Presence(true, bluetooth: true));
+        var controller = Assert.IsType<ActiveController>(discovery.FindActiveController());
+        Assert.Equal(ControllerProfile.DualSenseBluetooth, controller.Profile);
+        Assert.IsType<DualSenseHidReader>(controller.CreateBatteryReader());
+    }
+
     private sealed class SlotApi(params int[] connected) : IXInputApi
     {
         public bool TryGetBattery(int userIndex, out XInputBattery battery)
@@ -81,8 +92,9 @@ public sealed class WindowsControllerDiscoveryTests
             Task.FromResult(device);
     }
 
-    private sealed class Presence(bool present) : IControllerPresence
+    private sealed class Presence(bool present, bool bluetooth = false) : IControllerTransportPresence
     {
         public bool IsPresent(ControllerIdentity identity) => present;
+        public bool IsBluetooth(ControllerIdentity identity) => bluetooth;
     }
 }

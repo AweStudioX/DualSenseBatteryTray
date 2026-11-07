@@ -17,25 +17,27 @@ public sealed class DualSenseReportLivenessObserver
     public const int MinimumReportLength = SensorTimestampOffset + sizeof(uint);
 
     private readonly int _requiredObservations;
+    private readonly bool _bluetooth;
     private int _validObservations;
     private byte _lastSequence;
     private uint _lastTimestamp;
     private bool _hasPrevious;
 
-    public DualSenseReportLivenessObserver(int requiredObservations = 3)
+    public DualSenseReportLivenessObserver(int requiredObservations = 3, bool bluetooth = false)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(requiredObservations, 2);
         _requiredObservations = requiredObservations;
+        _bluetooth = bluetooth;
     }
 
     public ControllerLivenessObservation Observe(ReadOnlySpan<byte> report)
     {
-        if (report.Length < MinimumReportLength || report[0] != UsbReportId)
+        if (!DualSenseInputReport.TryGetPayloadOffset(report, out var payloadOffset, _bluetooth))
             return ControllerLivenessObservation.Insufficient;
 
-        var sequence = report[SequenceOffset];
+        var sequence = report[payloadOffset + SequenceOffset - 1];
         var timestamp = BinaryPrimitives.ReadUInt32LittleEndian(
-            report.Slice(SensorTimestampOffset, sizeof(uint)));
+            report.Slice(payloadOffset + SensorTimestampOffset - 1, sizeof(uint)));
         _validObservations++;
 
         var progressed = _hasPrevious

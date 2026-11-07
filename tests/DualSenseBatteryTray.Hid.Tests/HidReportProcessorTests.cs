@@ -44,7 +44,8 @@ public sealed class HidReportProcessorTests
 
     private static byte[] ReportWithBatteryByte(byte batteryByte)
     {
-        var report = new byte[BatteryParser.BatteryOffset + 2];
+        var report = new byte[64];
+        report[0] = 0x01;
         report[BatteryParser.BatteryOffset + 1] = batteryByte;
         return report;
     }

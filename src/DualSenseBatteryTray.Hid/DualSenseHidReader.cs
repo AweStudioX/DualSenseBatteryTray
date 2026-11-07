@@ -78,9 +78,10 @@ public sealed class DualSenseHidReader : IBatteryReportSource, IDisposable, IAsy
         try
         {
             var buffer = new byte[session.ReportLength];
-            var processor = new HidReportProcessor();
+            var processor = new HidReportProcessor(session.ReportLength == DualSenseInputReport.BluetoothLength);
             var failures = new ConsecutiveReadFailureTracker();
-            var liveness = new DualSenseReportLivenessObserver();
+            var liveness = new DualSenseReportLivenessObserver(
+                bluetooth: session.ReportLength == DualSenseInputReport.BluetoothLength);
             var deadlineCancellation = new CancellationTokenSource();
             var deadline = _delay.WaitAsync(_staleTimeout, deadlineCancellation.Token);
 
@@ -295,19 +296,19 @@ internal sealed class SystemAsyncTaskRace : IAsyncTaskRace
     public Task<Task> WhenAnyAsync(Task first, Task second) => Task.WhenAny(first, second);
 }
 
-internal sealed class HidReportProcessor
+internal sealed class HidReportProcessor(bool bluetooth = false)
 {
     private BatteryState? _lastState;
 
     public bool TryProcess(ReadOnlySpan<byte> report, out BatteryState? state)
     {
-        if (report.Length <= BatteryParser.BatteryOffset + 1)
+        if (!DualSenseInputReport.TryGetPayloadOffset(report, out var payloadOffset, bluetooth))
         {
             state = null;
             return false;
         }
 
-        var parsed = BatteryParser.Parse(report[1..]);
+        var parsed = BatteryParser.Parse(report[payloadOffset..]);
         if (parsed == _lastState)
         {
             state = null;

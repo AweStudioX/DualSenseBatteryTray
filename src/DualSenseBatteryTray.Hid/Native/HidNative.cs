@@ -76,6 +76,9 @@ public static class HidNative
     }
 
     internal static int GetInputReportByteLength(SafeFileHandle handle)
+        => GetReportByteLengths(handle).Input;
+
+    internal static (int Input, int Feature) GetReportByteLengths(SafeFileHandle handle)
     {
         if (!HidD_GetPreparsedData(handle, out var preparsedData))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not read HID preparsed data.");
@@ -90,13 +93,26 @@ public static class HidNative
             if (capabilities.InputReportByteLength == 0)
                 throw new IOException("The HID device reports a zero-length input report.");
 
-            return capabilities.InputReportByteLength;
+            return (capabilities.InputReportByteLength, capabilities.FeatureReportByteLength);
         }
         finally
         {
             _ = HidD_FreePreparsedData(preparsedData);
         }
     }
+
+    internal static bool TryRequestBluetoothFullReports(SafeFileHandle handle, int featureLength)
+    {
+        // GET calibration Feature Report 0x05 also enables full Bluetooth input reports.
+        // It does not set calibration or send an output report. Keep GENERIC_READ and sharing.
+        var report = new byte[Math.Max(41, featureLength)];
+        report[0] = 0x05;
+        return HidD_GetFeature(handle, report, report.Length);
+    }
+
+    [DllImport("hid.dll", ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool HidD_GetFeature(SafeFileHandle handle, [In, Out] byte[] report, int length);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
     private static extern SafeFileHandle CreateFileW(
