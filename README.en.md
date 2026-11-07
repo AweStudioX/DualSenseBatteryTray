@@ -1,99 +1,85 @@
-<div align="center">
-
 # Controller Battery Tray
 
-**Your controller battery, at a glance.**
+[简体中文](README.md) · [English](README.en.md)
 
-Windows tray utility · DualSense · XInput · Flydigi APEX 4
+See your controller battery in the Windows tray. It appears when the controller connects, disappears when it disconnects, and alerts you when the battery runs low.
 
-[简体中文](README.md) · **English**
+**Windows 10/11 · x64 · Current stable release v1.0.2**
 
-[Download stable](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) · [Compatibility](#compatibility) · [Build from source](#build-from-source) · [Report an issue](https://github.com/AweStudioX/DualSenseBatteryTray/issues)
+[Download installer](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) · [Compatibility](#supported-controllers) · [Report an issue](https://github.com/AweStudioX/DualSenseBatteryTray/issues)
 
-</div>
+![Real USB DualSense status window showing 55% and discharging](docs/images/controller-status.png)
 
-> **Version note:** native Bluetooth support is implemented in the current source, pending hardware verification. Published **v1.0.2 does not include it**. Screenshots show a real USB DualSense session; they are not evidence of Bluetooth hardware testing.
+*Captured from a USB DualSense on this PC. Battery values are converted from the controller's reported steps; 55% does not imply 1% accuracy.*
 
-## Preview
+## Get started in three steps
 
-![Real USB DualSense status window](docs/images/controller-status.png)
+1. Download the Windows x64 **Setup.exe** from [Releases](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) and run it.
+2. Connect a controller. Its icon and battery appear in the tray; click the icon for details.
+3. Right-click and choose **Tray layout → Two icons / Compact**. Low-battery alerts fire at 20% and 10%.
 
-### Two tray layouts
+Setup includes the .NET runtime and installs for the current user. Uninstall from **Windows Settings → Apps → Installed apps**. The installer is unsigned; you can check its SHA-256 against the file on the Release page.
 
-| Two icons · default | Compact · single icon |
+## What it looks like
+
+Switch layouts by right-clicking the tray icon. Your choice persists across reconnects:
+
+- **Two icons (default)**: separate controller and battery icons, with a percent sign for readability.
+- **Compact**: controller and number combined into one icon to save space.
+
+<details>
+<summary>Expand real screenshots of both layouts</summary>
+
+| Two icons | Compact |
 | :---: | :---: |
-| ![Separate controller and battery icons](docs/images/controller-tray.png) | ![Controller and number in one Compact icon](docs/images/controller-tray-compact.png) |
-| Controller artwork plus a separate percentage for readability | Controller artwork and number combined to save space |
+| <img src="docs/images/controller-tray.png" alt="Separate controller and battery tray icons" width="72"> | <img src="docs/images/controller-tray-compact.png" alt="Compact single tray icon" width="72"> |
 
-These are native-pixel captures from a vertical Windows taskbar. Compact omits the percent sign inside the icon; the tooltip and status window retain the full value. Right-click → **Tray layout** to switch. The choice persists without restarting the controller reader.
+These are native-pixel captures from a vertical Windows taskbar. Compact omits the percent sign inside the icon; the tooltip and detail window retain the full value.
 
-## Features
+</details>
 
-- **Battery and charging status in the tray**: click to view the device, connection, battery and state.
-- **Low-battery alerts**: notify at or below 20% and 10% while discharging, with duplicate suppression.
-- **Automatic visibility**: a background Watcher detects controllers after sign-in. DualSense liveness uses advancing report sequence/timestamp values to avoid mistaking an always-plugged adapter for a powered controller.
-- **System theme support**: tray artwork follows the Windows light/dark system theme.
-- **Per-user installation**: Setup includes the .NET runtime and supports removal through Windows Installed apps.
+## Supported controllers
 
-## Compatibility
+| Controller / connection | Status | Battery details |
+| --- | --- | --- |
+| DualSense · USB | Verified locally | Converted from roughly 10% steps; charging state shown |
+| XInput-compatible controllers | Detection supported | Wireless devices generally report only about 0 / 25 / 50 / 100%; some receivers expose no battery |
+| Flydigi APEX 4 · 2.4 GHz | Read through the local Space Station service | Requires that service; levels 0–5 map to approximate percentages |
+| DualSense · native Bluetooth | Source preview, **awaiting hardware verification** | Not included in the current v1.0.2 installer |
+| DualSense Edge, DualShock 4, other Flydigi models | No support commitment | Require separate adaptation and testing |
 
-| Controller / connection | Current source | Battery source and limits | Hardware verification |
-| --- | --- | --- | --- |
-| DualSense / USB HID | Supported | Converted from roughly 10% steps; 55% does not imply 1% accuracy | Reading and screenshots confirmed locally; game coexistence depends on the environment |
-| DualSense / native Bluetooth | Implemented, preview | Full Bluetooth reports with CRC validation; reads a calibration Feature Report on open to enable full reports | **Pending**: initial pairing, reconnect, resume, Steam Input coexistence |
-| XInput-compatible controllers | Detection supported; battery depends on device | Known wireless battery types expose approximately 0% / 25% / 50% / 100%; receivers reporting wired show unknown | Not a guarantee for all models or receivers |
-| Flydigi APEX 4 / 2.4 GHz | Local-service reader supported | Requires Space Station's fcs.sock channel and k2 identity; levels 0–5 map to approximate percentages | Not all firmware versions have been tested |
-| DualSense Edge / DualShock 4 / other Flydigi models | No support commitment | Require separate adaptation and verification | Not covered |
+Unavailable readings show **?**, never a fabricated 100%. Results can vary by model, firmware and receiver. Please include your device and connection method when [reporting an issue](https://github.com/AweStudioX/DualSenseBatteryTray/issues).
 
-Unavailable readings display a question mark, never a fabricated 100%. Flydigi may expose charging state without a percentage. Minimal Bluetooth reports, corrupted data and unsupported reports are not interpreted as battery values.
+## Bluetooth source preview
 
-## Install and use
+Current source includes native DualSense Bluetooth report reading, CRC validation and disconnect detection. On Bluetooth connection it reads a calibration Feature Report to request full reports containing battery data. **This has not been tested on a physical Bluetooth connection yet.** First pairing, reconnect, resume and Steam Input coexistence still need testing. [Build from source](#build-from-source) to try it; the v1.0.2 installer does not contain it.
 
-1. Download the Windows x64 Setup.exe from [Releases](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest).
-2. Install and connect a supported controller. Click the tray icon for details; right-click for layout, refresh and sign-in listener controls.
-3. Disconnecting or persistently losing valid advancing reports closes the app and removes its icons. The Watcher stays available for later connections.
-4. Remove via **Settings → Apps → Installed apps → DualSense Battery Tray**.
-
-### Rust native edition (separate preview)
+## Rust native edition (separate preview)
 
 The repository also contains a [Rust native edition](rust/Cargo.toml) with a Win32 window and tray, requiring no .NET installation for end users. It supports Two icons/Compact layouts, low-battery alerts, sign-in listening, and selection among detected controllers. The next tagged Release workflow additionally packages a separate `ControllerBatteryNative-...-Setup.exe` and ZIP; it does not overwrite the C# stable installation.
 
 See the [native verification record](docs/verification/2026-11-07-rust-native.md) for the local install/upgrade/uninstall smoke test and short idle measurements. Reconnect, resume, and Steam/game coexistence still need hardware acceptance before this becomes the default stable download.
 
-The installer is currently unsigned, so Windows SmartScreen may show a warning. Verify the GitHub Release source and supplied SHA-256. The ZIP is a **manual-install package, not a portable edition**: extract it and run install.ps1; remove it with uninstall.ps1. For Setup installations, use Windows Installed apps instead.
-
-## Native Bluetooth (source preview)
-
-Pair your DualSense through Windows first, then run a build of the current source. The app identifies the controller by the same Sony VID/PID, distinguishes USB and Bluetooth by HID report length, and shows **Bluetooth** in the status window.
-
-On Bluetooth open, the app reads calibration Feature Report 0x05 to request full input reports containing battery data. It does not write calibration values. If the request fails and full reports remain unavailable, no battery value is fabricated; the Watcher can retry on later probes. This path has automated coverage but still needs hardware verification.
-
-## Data and coexistence
-
-- HID access remains shared and read-only. No virtual controller, input remapping, lighting, vibration or button-control commands.
-- USB makes no Feature Report requests; Bluetooth performs the GET described above. A blanket claim of never accessing Feature Reports no longer applies to Bluetooth.
-- XInput uses the battery-status API; Flydigi queries its local Space Station service.
-- Logs and layout preferences remain local. No button or stick data is uploaded. HidHide, exclusive access or device hiding may prevent battery access.
-- Switching Bluetooth report mode may affect other software's assumptions about report format; Steam Input and game coexistence require hardware testing.
-
 ## Build from source
 
-Requires Windows x64 and .NET 8 SDK.
+Requires Windows x64 and the .NET 8 SDK.
 
-~~~powershell
+```powershell
 dotnet restore DualSenseBatteryTray.sln
 dotnet test DualSenseBatteryTray.sln -c Release
 dotnet publish src/DualSenseBatteryTray.App/DualSenseBatteryTray.App.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/app-publish
 dotnet publish src/DualSenseBatteryTray.Watcher/DualSenseBatteryTray.Watcher.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/watcher-publish
 .\scripts\merge-publish.ps1 -AppDirectory (Resolve-Path artifacts/app-publish).Path -WatcherDirectory (Resolve-Path artifacts/watcher-publish).Path -OutputDirectory (Join-Path $PWD artifacts/publish)
 .\scripts\install.ps1 -PublishDirectory (Resolve-Path artifacts/publish).Path
-~~~
+```
 
-Pushing a version tag triggers the Windows Release workflow: test, publish self-contained App/Watcher binaries, build and validate Setup, and upload packages plus checksums. See [.github/workflows/release.yml](.github/workflows/release.yml).
+The Release ZIP also requires its included install script; it is not portable. For a ZIP installation, use the included uninstall.ps1. See [release.yml](.github/workflows/release.yml) for the build and release workflow.
 
-## Acknowledgements
+<details>
+<summary>How it reads battery data, privacy and credits</summary>
 
-- [dualshock-tools](https://github.com/dualshock-tools/dualshock-tools.github.io): battery parsing reference; [MIT notice](LICENSES/dualshock-tools-MIT.txt).
-- [JKWTCN/BatteryMonitor](https://github.com/JKWTCN/BatteryMonitor): Flydigi service framing reference; [MIT notice](LICENSES/batterymonitor-MIT.txt).
-- [Microsoft Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons): controller artwork; [MIT notice](LICENSES/fluentui-system-icons-MIT.txt).
-- Bluetooth layout and CRC independently implemented from the protocol definitions in [Linux hid-playstation](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c); full-report initialization behavior checked against [go-dualsense-battery](https://github.com/neolit123/go-dualsense-battery/blob/main/main.go).
+DualSense uses shared read-only HID access; XInput uses its battery-status API; Flydigi queries the local Space Station service. The app does not create a virtual controller, remap input or send lighting, vibration or button-control commands. The Bluetooth preview additionally reads one Feature Report. Logs and layout preferences stay local; device hiding or exclusive access may prevent battery readings.
+
+Battery parsing draws on [dualshock-tools](https://github.com/dualshock-tools/dualshock-tools.github.io), Flydigi service framing on [BatteryMonitor](https://github.com/JKWTCN/BatteryMonitor), and controller artwork on [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons). License notices are in [LICENSES](LICENSES). Bluetooth report layout references [Linux hid-playstation](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c).
+
+</details>
