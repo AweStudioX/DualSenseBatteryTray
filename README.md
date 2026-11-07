@@ -1,79 +1,93 @@
-# Controller Battery Tray · 手柄电量托盘
+<div align="center">
 
-在 Windows 系统托盘直接查看手柄电量与充电状态。提供双图标和紧凑两种布局，适配系统明暗主题；手柄连接后自动显示，断开或停止上报有效数据后自动隐藏。
+# Controller Battery Tray
 
-![本机 USB DualSense 详情](docs/images/controller-status.png)
+**手柄电量，抬眼可见。**
 
-![本机竖向托盘局部](docs/images/controller-tray.png)
+Windows 托盘电量工具 · DualSense · XInput · 飞智八爪鱼 4
+
+**简体中文** · [English](README.en.md)
+
+[下载稳定版](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) · [支持范围](#支持范围) · [从源码构建](#从源码构建) · [反馈问题](https://github.com/AweStudioX/DualSenseBatteryTray/issues)
+
+</div>
+
+> **版本说明：**原生蓝牙支持已加入当前源码，尚待实机验证；已发布的 **v1.0.2 不包含此功能**。以下截图来自本机 USB DualSense，不能作为蓝牙实测证据。
+
+## 界面预览
+
+![本机 USB DualSense 的详情窗口](docs/images/controller-status.png)
+
+### 两种托盘布局
+
+| Two icons · 默认双图标 | Compact · 紧凑单图标 |
+| :---: | :---: |
+| ![双图标：手柄与百分比](docs/images/controller-tray.png) | ![Compact：单图标内显示手柄与数字](docs/images/controller-tray-compact.png) |
+| 手柄图标 + 带百分号的电量，优先可读性 | 手柄与电量合并，节省托盘空间 |
+
+本机使用竖向任务栏，以上均为原生像素截图。Compact 图标内省略百分号，悬停提示与详情窗口仍显示完整电量。右键图标 → **Tray layout** 可切换；选择会保存，切换不会重启手柄读取。
 
 ## 功能
 
-- **电量常驻托盘**：直接查看电量数字，点击图标打开设备、连接方式、电量和状态详情。
-- **两种布局**：默认双图标（手柄图标 + 带百分号的电量），也可切换为紧凑单图标；布局选择会保存。
+- **托盘电量与充电状态**：点击图标查看设备、连接方式、电量和状态。
 - **低电量提醒**：放电时到达或低于 20% / 10% 提醒，避免重复通知。
-- **自动出现与隐藏**：登录后由后台 Watcher 检测手柄；DualSense 通过持续变化的数据判断存活，避免把仍插着的转接器当成开机的手柄。
-- **安装与卸载**：Windows x64 安装包自带 .NET 运行时，按当前用户安装，可在 Windows“已安装的应用”中卸载。
+- **随手柄出现与隐藏**：后台 Watcher 在登录后检测设备；DualSense 通过报告序号和时间戳判断存活，避免把常插接收器误认为开机手柄。
+- **主题适配**：图标跟随 Windows 系统明暗主题。
+- **当前用户安装**：安装包包含 .NET 运行时，无需单独下载，可从 Windows“已安装的应用”卸载。
 
-## 支持范围与电量精度
+## 支持范围
 
-| 设备 / 连接方式 | 当前实现 | 电量说明与限制 |
-| --- | --- | --- |
-| DualSense / USB HID | 支持 | 按手柄上报的约 10% 档位换算；显示 55% 不代表精确到 1%。不包含原生蓝牙支持。 |
-| XInput 兼容手柄 | 支持检测；电量取决于设备上报 | 已知无线电池类型可显示约 0% / 25% / 50% / 100% 四档；接收器若按有线设备上报，则显示未知。 |
-| 飞智八爪鱼 4 / 2.4 GHz 接收器 | 通过飞智本地后台服务读取 | 依赖空间站后台服务的 fcs.sock 通道及 k2 型号识别；0–5 电量等级映射为近似百分比，充电时可能只有状态而没有百分比。 |
-| 其他飞智型号 / DualSense Edge / DualShock 4 | 不作已支持承诺 | 兼容标识不能证明具体型号；需要单独适配和实机验证。 |
+| 手柄 / 连接方式 | 当前源码 | 电量来源与限制 | 实测情况 |
+| --- | --- | --- | --- |
+| DualSense / USB HID | 支持 | 约 10% 档位换算，例如 55% 不表示精确到 1% | 本机读取与截图已确认；游戏共存需按环境验证 |
+| DualSense / 原生蓝牙 | 已实现，预览 | 读取完整蓝牙报告并校验 CRC；打开连接时请求校准 Feature Report，以启用完整报告 | **待实机验证**：首次配对、重连、休眠恢复、Steam Input 共存 |
+| XInput 兼容手柄 | 支持检测，电量取决于上报 | 已知无线电池类型约为 0% / 25% / 50% / 100% 四档；按有线设备上报的接收器显示未知 | 不承诺所有型号和接收器 |
+| 飞智八爪鱼 4 / 2.4 GHz | 支持本地服务读取 | 依赖空间站后台服务的 fcs.sock 通道及 k2 身份；0–5 等级映射为近似电量 | 当前适配不代表所有固件均实测 |
+| DualSense Edge / DualShock 4 / 其他飞智型号 | 暂不承诺支持 | 需要单独适配与验证 | 未覆盖 |
 
-上表描述当前代码覆盖范围，不代表全部型号、固件和转接器均已实测。无法读取时显示问号，不会用 100% 代替未知电量。截图来自本机 USB DualSense，未展示其他型号的实测结果。
+无法读取时显示问号，不用 100% 代替未知值。飞智充电时可能只有状态，没有百分比。蓝牙简化报告、损坏报告与不支持的报告不会被当作电量数据。
 
-## 下载与使用
+## 安装与使用
 
-1. 从 [GitHub Releases](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) 下载最新 win-x64-Setup.exe。
-2. 运行安装包，无需单独安装 .NET；连接受支持手柄后查看系统托盘。
-3. 点击图标查看详情；右键可切换布局、刷新，以及管理登录后监听。
-4. 卸载：Windows **设置 → 应用 → 已安装的应用 → DualSense Battery Tray**。
+1. 从 [Releases](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) 下载 Windows x64 的 Setup.exe。
+2. 安装后连接受支持手柄；点击托盘图标打开详情，右键管理布局、刷新和登录后监听。
+3. 手柄断开或持续停止有效上报后，应用退出并移除图标；后台 Watcher 保留检测能力。
+4. 卸载：**设置 → 应用 → 已安装的应用 → DualSense Battery Tray**。
 
-安装包当前未签名，可能触发 Windows SmartScreen 提示。请核对下载来源和 Release 附带的 SHA-256。ZIP 是手动安装包，并非免安装便携版。
+安装包目前未签名，Windows SmartScreen 可能显示提示。请核对 GitHub Release 来源与附带 SHA-256。ZIP 为手动安装包，**不是便携版**；解压后运行 install.ps1，移除使用 uninstall.ps1。Setup 安装请从 Windows 应用列表卸载。
+
+## 原生蓝牙（源码预览）
+
+在 Windows 中先完成 DualSense 蓝牙配对，然后运行从当前源码构建的版本。应用使用同一 Sony VID/PID 识别设备，根据 HID 报告长度区分 USB 与蓝牙，并在详情中显示 **Bluetooth**。
+
+蓝牙连接打开时读取校准 Feature Report 0x05，请求手柄提供含电量的完整报告；不会写入校准值。若请求失败且无法获得完整报告，应用不会编造电量，Watcher 会在后续检测中重新尝试。此路径已有自动测试，硬件验证仍待完成。
 
 ## 数据与兼容性
 
-DualSense HID 采用共享只读方式；XInput 使用电池状态查询；飞智通过本地后台服务查询电量。应用不发送手柄灯光、震动或按键控制命令，也不创建虚拟手柄。第三方隐藏设备或独占访问可能导致电量不可读，具体游戏共存情况需要按设备实测。
+- HID 保持共享只读访问；不创建虚拟手柄、不映射输入、不发送灯光、震动或按键控制命令。
+- USB 不请求 Feature Report；蓝牙额外进行上述 Feature Report 读取。因此“完全不访问 Feature Report”不适用于新版蓝牙路径。
+- XInput 使用电池状态 API；飞智通过本地空间站服务查询。
+- 日志与布局偏好保存在本地，不上传按键或摇杆数据。HidHide、独占访问或设备隐藏可能导致电量不可读。
+- 蓝牙模式切换可能影响其他软件对手柄报告格式的假设；Steam Input 与游戏共存需实机确认。
 
-## English
+## 从源码构建
 
-Windows x64 tray battery monitor for USB DualSense and XInput-compatible controllers, with Flydigi APEX 4 readings through the local Space Station service. Includes readable/compact layouts, charging status, low-battery alerts, and automatic visibility based on controller liveness. Support depends on the connection and available battery source; percentages can be coarse estimates.
+需要 Windows x64 和 .NET 8 SDK。
 
+~~~powershell
+dotnet restore DualSenseBatteryTray.sln
+dotnet test DualSenseBatteryTray.sln -c Release
+dotnet publish src/DualSenseBatteryTray.App/DualSenseBatteryTray.App.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/app-publish
+dotnet publish src/DualSenseBatteryTray.Watcher/DualSenseBatteryTray.Watcher.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/watcher-publish
+.\scripts\merge-publish.ps1 -AppDirectory (Resolve-Path artifacts/app-publish).Path -WatcherDirectory (Resolve-Path artifacts/watcher-publish).Path -OutputDirectory (Join-Path $PWD artifacts/publish)
+.\scripts\install.ps1 -PublishDirectory (Resolve-Path artifacts/publish).Path
+~~~
 
-## Install
+发布 version tag 会触发 Windows Release 流程：测试、构建自包含应用与 Watcher、构建并验证安装包、上传产物及校验文件。详见 [.github/workflows/release.yml](.github/workflows/release.yml)。
 
-Download `DualSenseBatteryTray-v1.0.1-win-x64-Setup.exe` from the [latest GitHub Release](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) and run it. This is one per-user installer: it bundles the App, background Watcher, and .NET runtime, so there is no second download or administrator prompt. It installs to `%LOCALAPPDATA%\Programs\DualSenseBatteryTray`, registers the Watcher to start at Windows sign-in, and appears in Windows **Installed apps**. The tray App still appears only while a live controller is detected.
+## 致谢
 
-To remove it, use Windows **Settings → Apps → Installed apps → DualSense Battery Tray → Uninstall**, or the Start Menu uninstall shortcut. The installer is currently unsigned, so Windows SmartScreen may show a warning; verify the release download and its `.sha256` checksum before choosing to run it.
-
-The `win-x64.zip` archive remains available for manual installation. It is not a portable edition. Extract it and run:
-
-```powershell
-.\install.ps1 -PublishDirectory .\publish
-```
-
-This PowerShell route installs the same App, Watcher, and logon task for the current user. If you installed from ZIP, remove it with `uninstall.ps1` from the extracted archive. If you installed with Setup.exe, use Windows Installed apps instead.
-
-## Behavior
-
-- Supported controllers currently include USB DualSense and XInput-compatible controllers. Flydigi receivers are recognized separately when Windows exposes their `FLYDIGI_VADER` or `FLYDIGI_APEX` compatibility identity; other XInput devices use a generic gamepad profile and icon.
-- A supported controller uses the readable `Two icons` layout by default at 96 DPI: a controller-specific icon followed by a separate battery value that includes `%`.
-- DualSense reports coarse battery steps (roughly 10%); values such as 55% are converted estimates, not 1%-accurate measurements. When XInput exposes a known wireless battery type, the application displays its four coarse buckets as `≈ 0%`, `≈ 25%`, `≈ 50%`, or `≈ 100%`. Some third-party receivers—including current Flydigi compatibility firmware—report themselves as wired; their battery remains `?` instead of showing a misleading 100%.
-- Flydigi APEX 4 exposes its real 0–5 battery level and charging state through the Space Station background channel. When its local `fcs.sock` pipe is available, the app identifies the controller as `k2`, uses the APEX icon, and reads that channel without opening or taking over controller input. Without a verified identity source, the receiver is still detected, but its misleading `VADER3` compatibility identity is not treated as an exact model match: the app uses the generic gamepad icon and shows battery as `?`.
-- `Compact` remains an optional persisted layout with one controller-and-number icon; it omits `%` inside the icon while hover text and the status window retain the complete percentage.
-- Connected tray artwork automatically adapts its outline and number contrast when the Windows system theme changes. Charging never replaces the measured percentage with a fabricated value.
-- `Tray layout` in the right-click menu switches live between `Two icons` and `Compact`; the successful choice is remembered across reconnects without restarting the HID session.
-- The executable and status window use a separate static, unconnected controller identity with an unlit touchpad and no blue connection indicator.
-- Clicking any active tray icon opens the status window; right-clicking opens Refresh, listener, tray-layout, About, and Exit commands.
-- VID/PID presence alone is not treated as a connected DualSense. The hidden watcher launches for advancing DualSense reports or an active XInput slot; an idle DualSense adapter that returns frozen reports keeps every tray/window UI hidden.
-- When advancing reports stop, the tray application closes and removes its icon or icons after the liveness timeout; the hidden watcher remains available and restores the application automatically when advancing reports resume without requiring a USB reconnect.
-- DualSense HID access is shared and read-only. XInput support calls only the battery-status API. The application never sends controller output, feature reports, vibration, lighting, or input commands.
-- Controller artwork is adapted from Microsoft Fluent UI System Icons under MIT; see `LICENSES/fluentui-system-icons-MIT.txt`.
-- Flydigi local-service protocol framing is adapted from JKWTCN/BatteryMonitor under MIT; see `LICENSES/batterymonitor-MIT.txt`.
-
-## Releases
-
-Pushing a version tag such as `v1.0.1` runs the Windows Release workflow. It tests the solution, publishes self-contained `win-x64` App and Watcher executables, builds and smoke-tests Setup.exe, then attaches Setup.exe, the manual-install ZIP, and a SHA-256 checksum for each to the GitHub Release. A manual workflow run validates the same packages without publishing a release.
+- [dualshock-tools](https://github.com/dualshock-tools/dualshock-tools.github.io)：电量解析依据，MIT 声明见 [LICENSES](LICENSES/dualshock-tools-MIT.txt)。
+- [JKWTCN/BatteryMonitor](https://github.com/JKWTCN/BatteryMonitor)：飞智本地服务协议封装参考，见 [MIT 声明](LICENSES/batterymonitor-MIT.txt)。
+- [Microsoft Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons)：手柄图标素材，见 [MIT 声明](LICENSES/fluentui-system-icons-MIT.txt)。
+- 蓝牙报告布局和 CRC 依据 [Linux hid-playstation](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c) 的协议定义独立实现；完整报告初始化行为参考 [go-dualsense-battery](https://github.com/neolit123/go-dualsense-battery/blob/main/main.go)。
