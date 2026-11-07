@@ -332,19 +332,15 @@ public static class BatteryIconRenderer
         ControllerIconKind iconKind = ControllerIconKind.DualSense)
     {
         ValidateStateAndSize(state, size);
-        var controller = iconKind == ControllerIconKind.DualSense
-            ? SelectConnectedController(theme)
-            : RenderConnectedControllerGlyph(theme, size, iconKind);
+        // Render directly at the requested tray size; shrinking the detailed PNG
+        // makes the 16px silhouette and its touchpad text indistinct.
+        var controller = RenderConnectedControllerGlyph(theme, size, iconKind);
         var numberLayer = RenderCompactNumberLayer(state, size);
         var visual = new DrawingVisual();
         RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
         using (var context = visual.RenderOpen())
         {
-            context.DrawImage(
-                controller,
-                iconKind == ControllerIconKind.DualSense
-                    ? GetConnectedControllerBounds(size)
-                    : new System.Windows.Rect(0, 0, size, size));
+            context.DrawImage(controller, new System.Windows.Rect(0, 0, size, size));
             context.DrawImage(numberLayer, new System.Windows.Rect(0, 0, size, size));
         }
 
