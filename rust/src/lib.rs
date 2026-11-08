@@ -54,6 +54,32 @@ pub fn parse_dualsense_report(report: &[u8]) -> Option<BatteryState> {
     })
 }
 
+/// DualShock 4 status byte in Sony's full USB (0x01) or Bluetooth (0x11) report.
+/// A minimal Bluetooth report has no battery field and is intentionally rejected.
+pub fn parse_dualshock4_report(report: &[u8]) -> Option<BatteryState> {
+    let status = match (report.len(), report.first().copied()) {
+        (64, Some(0x01)) => *report.get(30)?,
+        (78, Some(0x11))
+            if bluetooth_crc(&report[..74])
+                == u32::from_le_bytes(report[74..78].try_into().ok()?) =>
+        {
+            *report.get(32)?
+        }
+        _ => return None,
+    };
+    let level = status & 0x0f;
+    let cable = status & 0x10 != 0;
+    let (percentage, state) = match (cable, level) {
+        (true, 0..=9) => (Some(level * 10 + 5), ChargeState::Charging),
+        (true, 10) => (Some(100), ChargeState::Charging),
+        (true, 11) => (Some(100), ChargeState::Full),
+        (false, 0..=9) => (Some(level * 10 + 5), ChargeState::Discharging),
+        (false, 10) => (Some(100), ChargeState::Discharging),
+        _ => (None, ChargeState::Unknown),
+    };
+    Some(BatteryState { percentage, state })
+}
+
 pub fn bluetooth_crc(data: &[u8]) -> u32 {
     let mut crc = update_crc(u32::MAX, 0xa1);
     for &byte in data {
@@ -164,5 +190,40 @@ mod tests {
         let mut next = first;
         next[7] = 1;
         assert!(reports_progressed(&first, &next));
+    }
+
+    #[test]
+    fn dualshock4_usb_charging_and_full_are_distinct() {
+        let mut report = [0u8; 64];
+        report[0] = 1;
+        report[30] = 0x14;
+        assert_eq!(
+            parse_dualshock4_report(&report),
+            Some(BatteryState {
+                percentage: Some(45),
+                state: ChargeState::Charging,
+            })
+        );
+        report[30] = 0x1b;
+        assert_eq!(
+            parse_dualshock4_report(&report).unwrap().state,
+            ChargeState::Full
+        );
+        report[30] = 0x1f;
+        assert_eq!(parse_dualshock4_report(&report).unwrap().percentage, None);
+    }
+
+    #[test]
+    fn dualshock4_bluetooth_requires_valid_crc() {
+        let mut report = [0u8; 78];
+        report[0] = 0x11;
+        report[32] = 7;
+        assert_eq!(parse_dualshock4_report(&report), None);
+        let crc = bluetooth_crc(&report[..74]);
+        report[74..].copy_from_slice(&crc.to_le_bytes());
+        assert_eq!(
+            parse_dualshock4_report(&report).unwrap().percentage,
+            Some(75)
+        );
     }
 }

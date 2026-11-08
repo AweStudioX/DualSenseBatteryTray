@@ -1,6 +1,7 @@
 //! Read-only, shared Windows HID/XInput probe. It never writes controller output.
 use crate::{
-    BatteryState, flydigi, parse_dualsense_report, parse_xinput_battery, reports_progressed,
+    BatteryState, flydigi, parse_dualsense_report, parse_dualshock4_report, parse_xinput_battery,
+    reports_progressed,
 };
 use std::{ffi::c_void, mem::size_of, os::windows::ffi::OsStrExt, ptr};
 
@@ -169,7 +170,7 @@ pub struct Detection {
 }
 
 pub fn probe() -> Vec<Detection> {
-    let mut found = probe_dualsense();
+    let mut found = probe_sony();
     let mut xinput = Vec::new();
     if let Some(xinput_api) = XInputApi::load() {
         for index in 0..4 {
@@ -432,7 +433,7 @@ fn read_exact(handle: Handle, data: &mut [u8]) -> Option<()> {
     Some(())
 }
 
-fn probe_dualsense() -> Vec<Detection> {
+fn probe_sony() -> Vec<Detection> {
     let mut found = Vec::new();
     let mut guid = Guid::default();
     unsafe {
@@ -494,16 +495,8 @@ fn probe_dualsense() -> Vec<Detection> {
             .take_while(|v| *v != 0)
             .collect();
         let path = String::from_utf16_lossy(&units);
-        if let Some((battery, bluetooth)) = probe_hid_path(&path) {
-            found.push(Detection {
-                source: if bluetooth {
-                    "DualSense Bluetooth"
-                } else {
-                    "DualSense USB"
-                }
-                .into(),
-                battery,
-            });
+        if let Some(device) = probe_hid_path(&path) {
+            found.push(device);
         }
     }
     unsafe {
@@ -512,7 +505,7 @@ fn probe_dualsense() -> Vec<Detection> {
     found
 }
 
-fn probe_hid_path(path: &str) -> Option<(BatteryState, bool)> {
+fn probe_hid_path(path: &str) -> Option<Detection> {
     let wide: Vec<u16> = std::ffi::OsStr::new(path)
         .encode_wide()
         .chain(Some(0))
@@ -528,11 +521,15 @@ fn probe_hid_path(path: &str) -> Option<(BatteryState, bool)> {
         product: 0,
         version: 0,
     };
-    if unsafe { HidD_GetAttributes(attrs_handle.0, &mut attrs) } == 0
-        || (attrs.vendor, attrs.product) != (0x054c, 0x0ce6)
-    {
+    if unsafe { HidD_GetAttributes(attrs_handle.0, &mut attrs) } == 0 {
         return None;
     }
+    let model = match (attrs.vendor, attrs.product) {
+        (0x054c, 0x0ce6) => "DualSense",
+        (0x054c, 0x0df2) => "DualSense Edge",
+        (0x054c, 0x05c4 | 0x09cc) => "DualShock 4",
+        _ => return None,
+    };
     let mut preparsed = ptr::null_mut();
     if unsafe { HidD_GetPreparsedData(attrs_handle.0, &mut preparsed) } == 0 {
         return None;
@@ -560,7 +557,7 @@ fn probe_hid_path(path: &str) -> Option<(BatteryState, bool)> {
     if handle.0 == INVALID {
         return None;
     }
-    if caps.input_len == 78 {
+    if model.starts_with("DualSense") && caps.input_len == 78 {
         let mut feature = vec![0u8; (caps.feature_len as usize).max(41)];
         feature[0] = 5;
         unsafe {
@@ -573,10 +570,26 @@ fn probe_hid_path(path: &str) -> Option<(BatteryState, bool)> {
     }
     let first = read_report(handle.0, event.0, caps.input_len as usize)?;
     let second = read_report(handle.0, event.0, caps.input_len as usize)?;
-    if !reports_progressed(&first, &second) {
-        return None;
-    }
-    Some((parse_dualsense_report(&second)?, caps.input_len == 78))
+    let battery = if model.starts_with("DualSense") {
+        if !reports_progressed(&first, &second) {
+            return None;
+        }
+        parse_dualsense_report(&second)?
+    } else {
+        parse_dualshock4_report(&second)?
+    };
+    Some(Detection {
+        source: format!(
+            "{} {}",
+            model,
+            if caps.input_len == 78 {
+                "Bluetooth"
+            } else {
+                "USB"
+            }
+        ),
+        battery,
+    })
 }
 
 fn read_report(handle: Handle, event: Handle, length: usize) -> Option<Vec<u8>> {
