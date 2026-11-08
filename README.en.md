@@ -8,9 +8,9 @@ See your controller battery in the Windows tray. It appears when the controller 
 
 [Download installer](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) · [Compatibility](#supported-controllers) · [Report an issue](https://github.com/AweStudioX/DualSenseBatteryTray/issues)
 
-![Real USB DualSense status window showing 55% and discharging](docs/images/controller-status.png)
+![Real Rust native preview with a USB DualSense at 85% and discharging](docs/images/controller-status.png)
 
-*Captured from a USB DualSense on this PC. Battery values are converted from the controller's reported steps; 55% does not imply 1% accuracy.*
+*Captured from the Rust native preview with a USB DualSense on this PC: 85%, on battery. Values are converted from the controller's reported steps and do not imply 1% accuracy. The C# stable edition has a slightly different window appearance.*
 
 ## Get started in three steps
 
@@ -28,13 +28,13 @@ Switch layouts by right-clicking the tray icon. Your choice persists across reco
 - **Compact**: controller and number combined into one icon to save space.
 
 <details>
-<summary>Expand real screenshots of both layouts</summary>
+<summary>Expand real Rust native tray screenshots of both layouts</summary>
 
 | Two icons | Compact |
 | :---: | :---: |
-| <img src="docs/images/controller-tray.png" alt="Separate controller and battery tray icons" width="72"> | <img src="docs/images/controller-tray-compact.png" alt="Compact single tray icon" width="72"> |
+| <img src="docs/images/controller-tray.png" alt="Native Two icons tray with USB DualSense at 85%" width="72"> | <img src="docs/images/controller-tray-compact.png" alt="Native Compact tray with USB DualSense at 85%" width="72"> |
 
-These are native-pixel captures from a vertical Windows taskbar. Compact omits the percent sign inside the icon; the tooltip and detail window retain the full value.
+These are native-pixel captures from a vertical Windows taskbar. Compact omits the percent sign inside the icon; the tooltip and detail window retain the full value. Actual tray icons are small.
 
 </details>
 

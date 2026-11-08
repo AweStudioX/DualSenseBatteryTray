@@ -8,9 +8,9 @@
 
 [下载安装包](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) · [查看支持范围](#支持的手柄) · [反馈问题](https://github.com/AweStudioX/DualSenseBatteryTray/issues)
 
-![本机 USB DualSense 的状态窗口：55%，正在放电](docs/images/controller-status.png)
+![Rust 原生预览版实机截图：USB DualSense，85%，正在放电](docs/images/controller-status.png)
 
-*本机 USB DualSense 实拍。电量按手柄上报档位换算；55% 不表示精确到 1%。*
+*本机 Rust 原生预览版 + USB DualSense 实拍，电量为 85%，正在放电。数值按手柄上报档位换算，不表示精确到 1%。C# 稳定版的窗口外观略有不同。*
 
 ## 三步开始
 
@@ -28,13 +28,13 @@
 - **Compact**：手柄与数字合为一个图标，节省空间。
 
 <details>
-<summary>展开查看两种布局的实机截图</summary>
+<summary>展开查看 Rust 原生版的两种托盘布局实机截图</summary>
 
 | Two icons | Compact |
 | :---: | :---: |
-| <img src="docs/images/controller-tray.png" alt="双图标托盘截图" width="72"> | <img src="docs/images/controller-tray-compact.png" alt="Compact 单图标托盘截图" width="72"> |
+| <img src="docs/images/controller-tray.png" alt="原生版双图标托盘，DualSense USB 85%" width="72"> | <img src="docs/images/controller-tray-compact.png" alt="原生版 Compact 单图标托盘，DualSense USB 85%" width="72"> |
 
-截图来自本机竖向任务栏，按原生像素显示。Compact 图标内省略百分号，悬停提示和详情窗口仍显示完整电量。
+截图来自本机竖向任务栏，按原生像素显示。Compact 图标内省略百分号，悬停提示和详情窗口仍显示完整电量；真实任务栏图标尺寸很小。
 
 </details>
 
