@@ -9,6 +9,37 @@ pub enum TrayLayout {
     TwoIcons,
 }
 
+pub const ALERT_COOLDOWN_SECS: u64 = 12 * 60 * 60;
+
+/// The last emitted toast, stored on disk so reconnects cannot repeat it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AlertReceipt {
+    pub threshold: u8,
+    pub unix_seconds: u64,
+}
+
+impl AlertReceipt {
+    pub fn parse(value: &str) -> Option<Self> {
+        let (threshold, unix_seconds) = value.trim().split_once(' ')?;
+        let threshold = threshold.parse().ok()?;
+        if !matches!(threshold, 10 | 20) {
+            return None;
+        }
+        Some(Self {
+            threshold,
+            unix_seconds: unix_seconds.parse().ok()?,
+        })
+    }
+
+    pub fn permits(self, threshold: u8, now: u64) -> bool {
+        threshold < self.threshold || now.saturating_sub(self.unix_seconds) >= ALERT_COOLDOWN_SECS
+    }
+
+    pub fn encode(self) -> String {
+        format!("{} {}", self.threshold, self.unix_seconds)
+    }
+}
+
 impl TrayLayout {
     pub fn parse(value: &str) -> Self {
         if value.trim() == "Compact" {
@@ -113,5 +144,16 @@ mod tests {
             alerts.observe(Some(battery(10, ChargeState::Discharging))),
             Some(10)
         );
+    }
+
+    #[test]
+    fn alert_receipt_survives_reconnect_and_allows_critical_escalation() {
+        let previous = AlertReceipt::parse("20 1000\n").unwrap();
+        assert!(!previous.permits(20, 1001));
+        assert!(previous.permits(10, 1001));
+        assert!(!previous.permits(20, 999));
+        assert!(previous.permits(20, 1000 + ALERT_COOLDOWN_SECS));
+        assert_eq!(AlertReceipt::parse(&previous.encode()), Some(previous));
+        assert_eq!(AlertReceipt::parse("bad data"), None);
     }
 }

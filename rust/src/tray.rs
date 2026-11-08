@@ -1,6 +1,6 @@
 //! Minimal native Win32 shell. HID work runs off the UI thread.
 use crate::watcher;
-use controller_battery_native::features::{LowBatteryAlerts, TrayLayout};
+use controller_battery_native::features::{AlertReceipt, LowBatteryAlerts, TrayLayout};
 use controller_battery_native::windows_probe::{self, Detection};
 use std::{
     ffi::c_void,
@@ -9,7 +9,7 @@ use std::{
     sync::atomic::{AtomicI32, Ordering},
     sync::{Mutex, OnceLock},
     thread,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 type Handle = *mut c_void;
@@ -293,6 +293,10 @@ fn layout_path() -> Option<std::path::PathBuf> {
             .join("DualSenseBatteryTray")
             .join("tray-layout.txt")
     })
+}
+
+fn alert_receipt_path() -> Option<std::path::PathBuf> {
+    layout_path().map(|path| path.with_file_name("low-battery-alert.txt"))
 }
 
 fn load_layout() -> TrayLayout {
@@ -726,6 +730,18 @@ fn notify_low_battery(hwnd: Handle) {
     let threshold = current.alerts.observe(battery);
     drop(current);
     let Some(threshold) = threshold else { return };
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs());
+    let receipt_path = alert_receipt_path();
+    if receipt_path
+        .as_ref()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|contents| AlertReceipt::parse(&contents))
+        .is_some_and(|receipt| !receipt.permits(threshold, now))
+    {
+        return;
+    }
     let mut info = NotifyIcon::new(hwnd, 1);
     info.flags = NIF_INFO;
     let title = "Controller battery low";
@@ -737,7 +753,17 @@ fn notify_low_battery(hwnd: Handle) {
         *dest = src;
     }
     info.info_flags = 2;
-    unsafe { Shell_NotifyIconW(1, &info) };
+    if unsafe { Shell_NotifyIconW(1, &info) } != 0
+        && let Some(path) = receipt_path
+        && let Some(parent) = path.parent()
+        && std::fs::create_dir_all(parent).is_ok()
+    {
+        let receipt = AlertReceipt {
+            threshold,
+            unix_seconds: now,
+        };
+        let _ = std::fs::write(path, receipt.encode());
+    }
 }
 
 fn system_uses_light_taskbar() -> bool {

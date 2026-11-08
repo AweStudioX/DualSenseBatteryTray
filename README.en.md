@@ -4,7 +4,7 @@
 
 See your controller battery in the Windows tray. It appears when the controller connects, disappears when it disconnects, and alerts you when the battery runs low.
 
-**Windows 10/11 · x64 · Current stable release v1.0.2**
+**Windows 10/11 · x64 · Current release v1.0.3 (stable + Rust preview)**
 
 [Download installer](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) · [Compatibility](#supported-controllers) · [Report an issue](https://github.com/AweStudioX/DualSenseBatteryTray/issues)
 
@@ -14,11 +14,11 @@ See your controller battery in the Windows tray. It appears when the controller 
 
 ## Get started in three steps
 
-1. Download the Windows x64 **Setup.exe** from [Releases](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest) and run it.
+1. From [Releases](https://github.com/AweStudioX/DualSenseBatteryTray/releases/latest), download `DualSenseBatteryTray-...-Setup.exe` (stable) or `ControllerBatteryNative-...-Setup.exe` (lightweight Rust preview). Enable only one sign-in watcher if both editions are installed.
 2. Connect a controller. Its icon and battery appear in the tray; click the icon for details.
-3. Right-click and choose **Tray layout → Two icons / Compact**. Low-battery alerts fire at 20% and 10%.
+3. Right-click and choose **Tray layout → Two icons / Compact**. Low-battery alerts fire at 20% and 10%; the Rust edition suppresses repeated alerts at the same threshold for 12 hours across reconnects, while still allowing escalation to 10%.
 
-Setup includes the .NET runtime and installs for the current user. Uninstall from **Windows Settings → Apps → Installed apps**. The installer is unsigned; you can check its SHA-256 against the file on the Release page.
+Stable Setup includes the .NET runtime; Rust Setup does not require .NET. Both install for the current user. Uninstall from **Windows Settings → Apps → Installed apps**. The installers are unsigned; verify their SHA-256 files on the Release page.
 
 ## What it looks like
 
@@ -42,23 +42,25 @@ These are native-pixel captures from a vertical Windows taskbar. Compact omits t
 
 | Controller / connection | Status | Battery details |
 | --- | --- | --- |
-| DualSense · USB | Verified locally | Converted from roughly 10% steps; charging state shown |
+| DualSense · USB | Verified locally in both editions | Converted from roughly 10% steps; charging state shown |
 | XInput-compatible controllers | Detection supported | Wireless devices generally report only about 0 / 25 / 50 / 100%; some receivers expose no battery |
 | Flydigi APEX 4 · 2.4 GHz | Read through the local Space Station service | Requires that service; levels 0–5 map to approximate percentages |
-| DualSense · native Bluetooth | Source preview, **awaiting hardware verification** | Not included in the current v1.0.2 installer |
-| DualSense Edge, DualShock 4, other Flydigi models | No support commitment | Require separate adaptation and testing |
+| DualSense · native Bluetooth | Implemented in Rust, **awaiting hardware verification** | Not included in stable edition |
+| DualSense Edge, original DualShock 4 | Implemented in Rust, **awaiting hardware verification** | Full USB/Bluetooth HID reports; no fabricated percentage when unavailable |
+| Switch Pro / Joy-Con | Proprietary battery protocol not yet supported | No report-mode switching that might affect game input |
+| Other Flydigi models | No support commitment | Require model-specific testing |
 
 Unavailable readings show **?**, never a fabricated 100%. Results can vary by model, firmware and receiver. Please include your device and connection method when [reporting an issue](https://github.com/AweStudioX/DualSenseBatteryTray/issues).
 
 ## Bluetooth source preview
 
-Current source includes native DualSense Bluetooth report reading, CRC validation and disconnect detection. On Bluetooth connection it reads a calibration Feature Report to request full reports containing battery data. **This has not been tested on a physical Bluetooth connection yet.** First pairing, reconnect, resume and Steam Input coexistence still need testing. [Build from source](#build-from-source) to try it; the v1.0.2 installer does not contain it.
+The Rust edition includes native DualSense Bluetooth report reading, CRC validation and disconnect detection. On Bluetooth connection it reads a calibration Feature Report to request full reports containing battery data. **This has not been tested on a physical Bluetooth connection yet.** First pairing, reconnect, resume and Steam Input coexistence still need testing. Download the Rust preview to try it; the stable C# edition does not contain this path.
 
 ## Rust native edition (separate preview)
 
-The repository also contains a [Rust native edition](rust/Cargo.toml) with a Win32 window and tray, requiring no .NET installation for end users. It supports Two icons/Compact layouts, low-battery alerts, sign-in listening, and selection among detected controllers. The next tagged Release workflow additionally packages a separate `ControllerBatteryNative-...-Setup.exe` and ZIP; it does not overwrite the C# stable installation.
+The repository also contains a [Rust native edition](rust/Cargo.toml) with a Win32 window and tray, requiring no .NET installation for end users. It supports Two icons/Compact layouts, low-battery alerts, sign-in listening, and selection among detected controllers. Releases include a separate `ControllerBatteryNative-...-Setup.exe` and ZIP; it does not overwrite the C# stable installation. **It cannot yet directly replace the stable edition**: Bluetooth, DS4/Edge and resume still need physical-device validation.
 
-See the [native verification record](docs/verification/2026-11-07-rust-native.md) for the local install/upgrade/uninstall smoke test and short idle measurements. Reconnect, resume, and Steam/game coexistence still need hardware acceptance before this becomes the default stable download.
+See the [native verification record](docs/verification/2026-11-07-rust-native.md) for the install/upgrade/uninstall smoke test, game input and vibration check, and short idle measurements. The native Setup is about 1.58 MB; the tray plus Watcher used about 28 MB working set in a short sample, not a long-run guarantee.
 
 ## Build from source
 
